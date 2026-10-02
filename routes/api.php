@@ -1,11 +1,18 @@
 <?php
 
-use App\Http\Controllers\ExampleController;
-use Illuminate\Http\Request;
+use App\Http\Controllers\Authentication\AuthController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
+Route::prefix('v1')->group(function () {
 
-Route::apiResource('example', ExampleController::class);
+    // ── Authentication ───────────────────────────────────────────────────────
+    Route::prefix('auth')->group(function () {
+
+        Route::post('login',   [AuthController::class, 'login'])->name('login');
+
+        Route::middleware('auth')->group(function () {
+            Route::post('refresh', [AuthController::class, 'refresh'])->name('refresh');
+            Route::post('logout', [AuthController::class, 'logout'])->name('logout');
+        });
+    });
+});
