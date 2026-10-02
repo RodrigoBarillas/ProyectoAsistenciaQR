@@ -74,9 +74,70 @@ convención existente (`Route::apiResource('example', ExampleController::class)`
 
 ---
 
-## 2. Módulo Grados — `feature/crud-grados`
+## 2. Módulo Grados — `feature/crud-grados` ✅ Terminado
 
-### Archivos a crear
+> **Estado:** implementado, probado manualmente (éxito y error en los 5 endpoints) y
+> documentado en Swagger. Pendiente de PR/merge a `main` (decisión del equipo).
+
+### Notas de implementación (diferencias respecto al plan original)
+
+- **Rama base real:** el repo remoto tiene `main` con un commit inicial vacío
+  (`.gitignore` + `README.md`); todo el código Laravel vigente vive en `master`. Se creó
+  `feature/crud-grados` desde `master` (confirmado con el usuario) en vez de `main`. Antes
+  de ramificar se commitearon a `master` los cambios pendientes de `CLAUDE.md`, `AGENTS.md`
+  y este plan.
+- **Parámetros de ruta con tipo escalar en vez de route-model-binding:** el paquete
+  `laravel/swagger` (`epmyas2022/laravel-swagger`) solo trata como "path parameter" a los
+  argumentos del método cuyo tipo **no** es una clase existente (`class_exists($type)`
+  falso). Si `show`/`update`/`destroy` se tipan con `Grado $grado` (binding implícito), el
+  generador:
+  - no documenta `{grado}` como parámetro de ruta (el `parameters` del path queda vacío), y
+  - en `destroy` (sin body real) genera un `requestBody` falso apuntando a un schema vacío
+    `Grado`.
+
+  Por eso `GradoController::show/update/destroy` usan `string $grado` (igual que el patrón
+  ya usado en `ExampleController::destroy(string $id)`) y resuelven el modelo manualmente
+  con `Grado::findOrFail($grado)`. El comportamiento de cara al cliente no cambia:
+  `ModelNotFoundException` sigue devolviendo 404 JSON vía `shouldRenderJsonWhen`. Esto
+  aplica también a los módulos de Secciones y Estudiantes.
+- **`estado` tras `create()`:** `Grado::create($request->validated())` no envía `estado`
+  cuando el cliente lo omite, por lo que SQLite aplica el default `true` a nivel de
+  columna — pero la instancia en memoria que devuelve `create()` no se refresca con ese
+  valor (queda `null` hasta releer de BD). Se agregó `->refresh()` después de `create()` en
+  `store()` para que la respuesta refleje el valor real persistido.
+- **Swagger — una sola respuesta de ejemplo por endpoint:** el atributo
+  `#[SwaggerResponse(...)]` no es repetible (PHP no permite aplicar el mismo atributo dos
+  veces sin `Attribute::IS_REPEATABLE`), así que cada método documenta un único código de
+  éxito con ejemplo (`200`/`201`). Los códigos de error (`422`, `404`) se describen en el
+  texto de `#[SwaggerSummary(...)]`, ya que corresponden al formato de error estándar de
+  Laravel (no a un schema particular del recurso).
+
+### Archivos creados
+
+| Archivo | Resultado |
+|---|---|
+| `app/Models/Grado.php` | Hecho, igual al plan (`#[Fillable(['nombre','estado'])]`, cast `estado` a boolean, `secciones(): HasMany`) |
+| `app/Http/Controllers/GradoController.php` | Hecho; `show/update/destroy` usan `string $grado` + `findOrFail` (ver nota arriba) |
+| `app/Http/Requests/StoreGradoRequest.php` | Hecho, igual al plan |
+| `app/Http/Requests/UpdateGradoRequest.php` | Hecho, igual al plan (`Rule::unique('grados','nombre')->ignore($this->grado)`) |
+| `app/Http/Resources/GradoResource.php` | Hecho (`id`, `nombre`, `estado`, `created_at`, `updated_at`) |
+
+### Archivos modificados
+- `routes/api.php`: agregado el grupo con middleware comentado y
+  `Route::apiResource('grados', GradoController::class)`, igual al plan.
+
+### Pruebas realizadas (manual, vía `curl` contra `php artisan serve`)
+- `GET /api/grados` — lista vacía y lista con 2 registros → 200.
+- `POST /api/grados` — creación sin `estado` (default `true`) y con `estado` explícito →
+  201; sin `nombre` → 422; `nombre` duplicado → 422; `nombre` > 50 caracteres → 422.
+- `GET /api/grados/{id}` — detalle existente → 200; id inexistente → 404.
+- `PUT/PATCH /api/grados/{id}` — edición válida → 200; `nombre` duplicado contra otro
+  grado → 422; mismo `nombre` propio (verifica `ignore()`) → 200; id inexistente → 404.
+- `DELETE /api/grados/{id}` — inactivación (`estado=false`, fila persiste en BD) → 200; id
+  inexistente → 404.
+- Documentación verificada en `/api-docs` (JSON) y `/docs` (UI Swagger).
+
+### Archivos a crear (plan original, referencia)
 | Archivo | Propósito |
 |---|---|
 | `app/Models/Grado.php` | Modelo Eloquent, relación `hasMany(Seccion::class)` |
