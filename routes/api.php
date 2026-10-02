@@ -4,6 +4,7 @@ use App\Http\Controllers\Authentication\AuthController;
 use App\Http\Controllers\GradoController;
 use App\Http\Controllers\Permission\PermissionController;
 use App\Http\Controllers\Role\RoleController;
+use App\Http\Controllers\SeccionController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -56,5 +57,8 @@ Route::prefix('v1')->group(function () {
 
         // ── Grados ────────────────────────────────────────────────────────────
         Route::apiResource('grados', GradoController::class);
+
+        // ── Secciones ─────────────────────────────────────────────────────────
+        Route::apiResource('secciones', SeccionController::class);
     });
 });
