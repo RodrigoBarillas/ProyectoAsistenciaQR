@@ -21,8 +21,13 @@ es consumido por un frontend separado (no vive en este repo).
   `Route::prefix('v1')`. Requiere `JWT_SECRET` en `.env` (generar con
   `php artisan jwt:secret --force` si falta) y en `phpunit.xml` para los tests. `laravel/sanctum`
   sigue instalado pero ya no es el mecanismo de auth activo. Los 3 módulos CRUD
-  (Grados/Secciones/Estudiantes) están dentro del grupo `Route::middleware('auth')` — todo
-  endpoint requiere un JWT válido, pero no exigen ningún `permission:` específico todavía.
+  (Grados/Secciones/Estudiantes) están dentro del grupo `Route::middleware('auth')` y además
+  exigen permiso granular por acción vía `->middlewareFor()` en cada `Route::apiResource`:
+  `{recurso}.view` (index/show), `{recurso}.create` (store), `{recurso}.edit` (update),
+  `{recurso}.delete` (destroy) — p. ej. `grado.view`, `seccion.delete`,
+  `estudiante.create`. Estos permisos ya existían en `PermissionEnum`/`PermissionSeeder`
+  (hechos por el mismo compañero del módulo de auth) y ya estaban asignados a los roles
+  Administrador/Docente/Alumno — solo faltaba conectarlos a las rutas.
 - Documentación de API: paquete `laravel/swagger` (en realidad
   `epmyas2022/laravel-swagger` v0.3.0, instalado vía repositorio VCS en `composer.json`,
   **no** `l5-swagger`/`zircote/swagger-php`). Se documenta con **atributos PHP nativos**
@@ -102,8 +107,6 @@ foráneas.
 
 ## Pendientes conocidos (fuera de alcance actual)
 
-- Decidir si los endpoints de Grados/Secciones/Estudiantes deben exigir un `permission:`
-  específico (como los de Roles) o si basta con estar autenticado, como está ahora.
 - Decidir si se expone borrado físico en el futuro (hoy es solo lógico vía `estado`).
 - Modelos/controladores para `asistencias`, `administradores` (no son responsabilidad de
   estos 3 módulos). `roles`/`permissions` ya los implementó otro miembro del equipo.

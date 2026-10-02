@@ -528,11 +528,18 @@ de datos de test dedicada y ajustar `phpunit.xml`.
   `Route::middleware('auth')`. Las URLs pasaron de `/api/grados` a `/api/v1/grados`
   (análogo para `secciones`/`estudiantes`), y **ahora requieren un JWT válido** en el header
   `Authorization: Bearer <token>` — antes no exigían nada.
-- **No se agregó ningún `permission:<nombre>` propio todavía** a Grados/Secciones/
-  Estudiantes (a diferencia de Roles, que sí los tiene) — basta con estar autenticado. Si el
-  equipo decide requerir permisos granulares (p. ej. `grados.view`, `grados.manage`), hay
-  que coordinarlo con quien mantiene `PermissionEnum`/`PermissionSeeder`, porque hoy no
-  existen entradas para estos 3 recursos.
+- **Permisos granulares conectados:** al revisar la rama completa se encontró que
+  `PermissionEnum`/`PermissionSeeder` (del mismo compañero del módulo de auth) **ya traían**
+  permisos listos para estos 3 recursos (`grado.view/create/edit/delete`,
+  `seccion.*`, `estudiante.*`) y ya asignados a los roles (Administrador: todo; Docente:
+  ver grados/secciones, ver+crear+editar estudiantes pero no borrar nada; Alumno: nada de
+  estos 3 módulos) — simplemente no estaban conectados a las rutas. Se agregó
+  `->middlewareFor([...], 'permission:<recurso>.<accion>')` a cada `Route::apiResource`
+  (`index`/`show` → `.view`, `store` → `.create`, `update` → `.edit`, `destroy` →
+  `.delete`), igual que la ruta de búsqueda por QR (`estudiante.view`). Verificado
+  manualmente contra MySQL con un usuario Docente real: listar grados → 200, crear grado →
+  403, borrar estudiante → 403, todo con el mensaje de `CheckPermission`
+  (`"You do not have permission to perform this action: [...]"`).
 - **`JWT_SECRET` requerido:** se generó con `php artisan jwt:secret --force` para `.env`
   local, y se agregó un valor fijo de prueba a `phpunit.xml` (`JWT_SECRET`) para que los
   tests de feature puedan autenticar usuarios sin depender de un secreto real.
@@ -548,16 +555,22 @@ de datos de test dedicada y ajustar `phpunit.xml`.
   volvió a correr contra MySQL sin problemas tras el rebase.
 
 ### Tests de feature actualizados
-Los 53 tests de `GradoControllerTest`/`SeccionControllerTest`/`EstudianteControllerTest` se
+Los tests de `GradoControllerTest`/`SeccionControllerTest`/`EstudianteControllerTest` se
 actualizaron para:
 - Usar las URLs con prefijo `/api/v1/...`.
-- Autenticarse en cada test: `setUp()` ahora crea un usuario (`User::factory()->create()`) y
-  llama a `$this->actingAs($user, 'api')`, que sí funciona con el guard `jwt` del paquete
-  (resuelve el usuario directamente sin pasar por un token real). No se probaron los casos
-  de "sin token" / "token inválido" (401) porque esos pertenecen al módulo de auth, no a
-  estos 3 CRUDs.
+- Autenticarse con permisos reales: se agregó `tests/Concerns/AuthenticatesWithPermissions.php`
+  (trait reutilizable) con `actingAsUserWithPermissions(array $permissions)`, que crea un
+  `Role` de prueba, le adjunta los `Permission` indicados (`firstOrCreate` por nombre) y
+  autentica un usuario con ese rol vía `$this->actingAs($user, 'api')` (funciona con el
+  guard `jwt` sin necesitar un token real). Cada `setUp()` otorga los 4 permisos del
+  recurso correspondiente (`view`/`create`/`edit`/`delete`).
+- Se agregó un test por módulo que confirma el caso negativo: un usuario autenticado pero
+  **sin** el permiso `.create` recibe 403 al intentar crear (`assertForbidden()`). No se
+  probaron los casos de "sin token" / "token inválido" (401) porque esos pertenecen al
+  módulo de auth, no a estos 3 CRUDs.
 
-Todo verificado con `php artisan test` (53/53 en verde) después del rebase.
+Todo verificado con `php artisan test` (56/56 en verde) y manualmente contra MySQL real con
+login + distintos roles.
 
 ---
 
@@ -588,6 +601,5 @@ la dependencia de claves foráneas (Grado → Sección → Estudiante).
 
 ## 8. Pendientes fuera de alcance de esta etapa
 
-- Definir si Grados/Secciones/Estudiantes necesitan `permission:` granulares (ver sección 6).
 - Borrado físico (si se decide exponerlo más adelante).
 - Endpoint de regeneración de `qr_token` (p. ej. carnet perdido) — no solicitado todavía.
