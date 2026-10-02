@@ -22,8 +22,15 @@ class StoreSeccionRequest extends FormRequest
                 'max:20',
                 Rule::unique('secciones')->where(fn ($query) => $query->where('grado_id', $this->grado_id)),
             ],
-            'grado_id' => ['required', 'integer', 'exists:grados,id'],
+            'grado_id' => ['required', 'integer', Rule::exists('grados', 'id')->where('estado', true)],
             'estado' => ['sometimes', 'boolean'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'grado_id.exists' => 'El grado debe existir y estar activo.',
         ];
     }
 }

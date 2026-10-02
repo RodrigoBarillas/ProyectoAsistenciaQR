@@ -7,6 +7,8 @@ use App\Http\Requests\UpdateGradoRequest;
 use App\Http\Resources\GradoResource;
 use App\Models\Grado;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Laravel\Swagger\Attributes\SwaggerResponse;
 use Laravel\Swagger\Attributes\SwaggerSection;
 use Laravel\Swagger\Attributes\SwaggerSummary;
@@ -14,7 +16,7 @@ use Laravel\Swagger\Attributes\SwaggerSummary;
 #[SwaggerSection('Grados')]
 class GradoController extends Controller
 {
-    #[SwaggerSummary('Lista paginada de grados.')]
+    #[SwaggerSummary('Lista paginada de grados. Filtra por estado con el query param "estado" (true/false).')]
     #[SwaggerResponse([
         'data' => [
             [
@@ -38,9 +40,11 @@ class GradoController extends Controller
             'total' => 1,
         ],
     ], 200, 'Listado paginado de grados')]
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $grados = Grado::paginate(15);
+        $grados = Grado::query()
+            ->when($request->filled('estado'), fn ($query) => $query->where('estado', $request->boolean('estado')))
+            ->paginate(15);
 
         return GradoResource::collection($grados)->response();
     }
@@ -95,7 +99,7 @@ class GradoController extends Controller
         return (new GradoResource($grado))->response();
     }
 
-    #[SwaggerSummary('Inactiva un grado (borrado lógico: estado=false). Responde 404 si el id no existe.')]
+    #[SwaggerSummary('Inactiva un grado (borrado lógico: estado=false). Responde 404 si el id no existe y 422 si tiene secciones activas asociadas.')]
     #[SwaggerResponse([
         'data' => [
             'id' => 1,
@@ -108,6 +112,13 @@ class GradoController extends Controller
     public function destroy(string $grado): JsonResponse
     {
         $grado = Grado::findOrFail($grado);
+
+        if ($grado->secciones()->where('estado', true)->exists()) {
+            throw ValidationException::withMessages([
+                'estado' => ['No se puede inactivar el grado porque tiene secciones activas asociadas.'],
+            ]);
+        }
+
         $grado->update(['estado' => false]);
 
         return (new GradoResource($grado))->response();

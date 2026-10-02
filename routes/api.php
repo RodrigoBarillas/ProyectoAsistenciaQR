@@ -60,9 +60,10 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('grados', GradoController::class);
 
         // ── Secciones ─────────────────────────────────────────────────────────
-        Route::apiResource('secciones', SeccionController::class);
+        Route::apiResource('secciones', SeccionController::class)->parameters(['secciones' => 'seccion']);
 
         // ── Estudiantes ───────────────────────────────────────────────────────
+        Route::get('estudiantes/qr/{qr_token}', [EstudianteController::class, 'showByQrToken']);
         Route::apiResource('estudiantes', EstudianteController::class);
     });
 });

@@ -24,8 +24,15 @@ class UpdateEstudianteRequest extends FormRequest
             ],
             'nombres' => ['required', 'string', 'max:100'],
             'apellidos' => ['required', 'string', 'max:100'],
-            'seccion_id' => ['required', 'integer', 'exists:secciones,id'],
+            'seccion_id' => ['required', 'integer', Rule::exists('secciones', 'id')->where('estado', true)],
             'estado' => ['sometimes', 'boolean'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'seccion_id.exists' => 'La sección debe existir y estar activa.',
         ];
     }
 }

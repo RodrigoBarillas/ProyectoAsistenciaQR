@@ -8,6 +8,7 @@ use App\Http\Resources\SeccionResource;
 use App\Models\Seccion;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Laravel\Swagger\Attributes\SwaggerResponse;
 use Laravel\Swagger\Attributes\SwaggerSection;
 use Laravel\Swagger\Attributes\SwaggerSummary;
@@ -15,7 +16,7 @@ use Laravel\Swagger\Attributes\SwaggerSummary;
 #[SwaggerSection('Secciones')]
 class SeccionController extends Controller
 {
-    #[SwaggerSummary('Lista paginada de secciones. Filtra por grado con el query param "grado_id".')]
+    #[SwaggerSummary('Lista paginada de secciones. Filtra por grado con "grado_id" y por estado con "estado" (true/false).')]
     #[SwaggerResponse([
         'data' => [
             [
@@ -51,12 +52,13 @@ class SeccionController extends Controller
     {
         $secciones = Seccion::with('grado')
             ->when($request->filled('grado_id'), fn ($query) => $query->where('grado_id', $request->query('grado_id')))
+            ->when($request->filled('estado'), fn ($query) => $query->where('estado', $request->boolean('estado')))
             ->paginate(15);
 
         return SeccionResource::collection($secciones)->response();
     }
 
-    #[SwaggerSummary('Crea una sección dentro de un grado. Responde 422 si "nombre" falta, excede 20 caracteres, ya existe en ese grado, o "grado_id" no existe.')]
+    #[SwaggerSummary('Crea una sección dentro de un grado. Responde 422 si "nombre" falta, excede 20 caracteres, ya existe en ese grado, o "grado_id" no existe o no está activo.')]
     #[SwaggerResponse([
         'data' => [
             'id' => 1,
@@ -99,12 +101,12 @@ class SeccionController extends Controller
             'updated_at' => '2026-01-10T15:00:00.000000Z',
         ],
     ], 200, 'Detalle de la sección')]
-    public function show(string $seccione): JsonResponse
+    public function show(string $seccion): JsonResponse
     {
-        return (new SeccionResource(Seccion::with('grado')->findOrFail($seccione)))->response();
+        return (new SeccionResource(Seccion::with('grado')->findOrFail($seccion)))->response();
     }
 
-    #[SwaggerSummary('Edita una sección. Responde 422 en validación y 404 si el id no existe.')]
+    #[SwaggerSummary('Edita una sección. Responde 422 en validación (incluye grado inexistente o inactivo) y 404 si el id no existe.')]
     #[SwaggerResponse([
         'data' => [
             'id' => 1,
@@ -122,15 +124,15 @@ class SeccionController extends Controller
             'updated_at' => '2026-01-10T16:00:00.000000Z',
         ],
     ], 200, 'Sección actualizada')]
-    public function update(UpdateSeccionRequest $request, string $seccione): JsonResponse
+    public function update(UpdateSeccionRequest $request, string $seccion): JsonResponse
     {
-        $seccion = Seccion::findOrFail($seccione);
+        $seccion = Seccion::findOrFail($seccion);
         $seccion->update($request->validated());
 
         return (new SeccionResource($seccion->load('grado')))->response();
     }
 
-    #[SwaggerSummary('Inactiva una sección (borrado lógico: estado=false). Responde 404 si el id no existe.')]
+    #[SwaggerSummary('Inactiva una sección (borrado lógico: estado=false). Responde 404 si el id no existe y 422 si tiene estudiantes activos asociados.')]
     #[SwaggerResponse([
         'data' => [
             'id' => 1,
@@ -148,9 +150,16 @@ class SeccionController extends Controller
             'updated_at' => '2026-01-10T16:30:00.000000Z',
         ],
     ], 200, 'Sección inactivada')]
-    public function destroy(string $seccione): JsonResponse
+    public function destroy(string $seccion): JsonResponse
     {
-        $seccion = Seccion::findOrFail($seccione);
+        $seccion = Seccion::findOrFail($seccion);
+
+        if ($seccion->estudiantes()->where('estado', true)->exists()) {
+            throw ValidationException::withMessages([
+                'estado' => ['No se puede inactivar la sección porque tiene estudiantes activos asociados.'],
+            ]);
+        }
+
         $seccion->update(['estado' => false]);
 
         return (new SeccionResource($seccion->load('grado')))->response();
