@@ -268,11 +268,14 @@ convención existente (`Route::apiResource('example', ExampleController::class)`
 ### Endpoints
 | Método | Ruta | Descripción |
 |---|---|---|
-| GET | `/api/secciones` | Lista secciones (filtrable por `?grado_id=`) |
+| GET | `/api/secciones` | Lista secciones (filtrable por `?grado_id=` y `?estado=`) |
 | POST | `/api/secciones` | Crea una sección |
 | GET | `/api/secciones/{seccion}` | Detalle |
 | PUT/PATCH | `/api/secciones/{seccion}` | Edita |
 | DELETE | `/api/secciones/{seccion}` | Inactiva (`estado = false`) |
+
+> Nota: el parámetro de ruta se corrigió a `{seccion}` en `feature/ajustes-cruds` — ver
+> sección 7. Esta tabla ya refleja el nombre final.
 
 ### Validaciones y reglas de negocio
 - `nombre`: `required|string|max:20`.
@@ -384,11 +387,15 @@ convención existente (`Route::apiResource('example', ExampleController::class)`
 ### Endpoints
 | Método | Ruta | Descripción |
 |---|---|---|
-| GET | `/api/estudiantes` | Lista estudiantes (filtrable por `?seccion_id=`) |
+| GET | `/api/estudiantes` | Lista estudiantes (filtrable por `?seccion_id=`, `?grado_id=`, `?estado=`, `?search=`; paginable con `?page=`/`?per_page=`) |
 | POST | `/api/estudiantes` | Crea un estudiante (genera `qr_token` automáticamente) |
+| GET | `/api/estudiantes/qr/{qr_token}` | Busca un estudiante por su `qr_token` (lo usará el módulo de asistencia) |
 | GET | `/api/estudiantes/{estudiante}` | Detalle |
 | PUT/PATCH | `/api/estudiantes/{estudiante}` | Edita (no permite modificar `qr_token`) |
 | DELETE | `/api/estudiantes/{estudiante}` | Inactiva (`estado = false`) |
+
+> Nota: los filtros `?grado_id=`/`?estado=`/`?search=`, `?per_page=` y el endpoint de
+> búsqueda por QR se agregaron en `feature/ajustes-cruds` — ver sección 7.
 
 ### Validaciones y reglas de negocio
 - `codigo_estudiante`: `required|string|max:30|unique:estudiantes,codigo_estudiante`
@@ -412,7 +419,89 @@ convención existente (`Route::apiResource('example', ExampleController::class)`
 
 ---
 
-## 5. Flujo de Git
+## 5. Ajustes posteriores — `feature/ajustes-cruds`
+
+> **Estado:** implementado y probado (`php artisan test`, 53 pruebas en verde) sobre
+> `feature/crud-estudiantes`. Pendiente de PR/merge (decisión del equipo). No se tocó
+> `main`/`master`.
+
+Pasada de consistencia e integridad sobre los 3 módulos ya terminados, antes de activar
+autenticación real.
+
+### 1. Parámetro de ruta `{seccione}` → `{seccion}`
+`Route::apiResource('secciones', SeccionController::class)` ahora usa
+`->parameters(['secciones' => 'seccion'])`. Se renombró `string $seccione` a
+`string $seccion` en `SeccionController::show/update/destroy`, y
+`UpdateSeccionRequest` pasó de `$this->route('seccione')` a `$this->route('seccion')`.
+Verificado en `/api-docs`: el path queda `/api/secciones/{seccion}`.
+
+También se unificó `EstudianteController::update/destroy`, que guardaba el modelo resuelto
+en `$modelo` en vez de reasignar la variable del parámetro — ahora sigue el mismo patrón
+`string $x` → `$x = Modelo::findOrFail($x)` que `GradoController` y `SeccionController`.
+
+### 2. Reglas de integridad referencial (422, consistente con el resto del proyecto)
+- `GradoController::destroy()` y `SeccionController::destroy()` revisan, antes de poner
+  `estado = false`, si existen secciones/estudiantes **activos** relacionados
+  (`$grado->secciones()->where('estado', true)->exists()` / análogo para `Seccion`). Si
+  existen, se lanza `ValidationException::withMessages(['estado' => [...]])`, que Laravel
+  formatea como 422 con el mismo shape que cualquier otro error de validación del proyecto
+  (`{"message": ..., "errors": {"estado": [...]}}`).
+- `StoreSeccionRequest`/`UpdateSeccionRequest`: la regla de `grado_id` pasó de
+  `exists:grados,id` a `Rule::exists('grados', 'id')->where('estado', true)`, con mensaje
+  propio (`messages()`) para que el 422 sea claro ("El grado debe existir y estar activo.").
+- `StoreEstudianteRequest`/`UpdateEstudianteRequest`: mismo patrón para `seccion_id` contra
+  `secciones.estado`, con su propio mensaje ("La sección debe existir y estar activa.").
+- No se usó 409 en ningún caso — se mantiene 422 en todo el proyecto para violaciones de
+  reglas de negocio, igual que las validaciones de unicidad ya existentes.
+
+### 3. Filtros, búsqueda y paginación en los listados
+- Grados y Secciones: nuevo filtro `?estado=` (acepta `true`/`false`/`1`/`0`, leído con
+  `$request->boolean('estado')`).
+- Estudiantes, además de `?seccion_id=` y `?estado=`: `?grado_id=` (vía
+  `whereHas('seccion', ...)`, porque la tabla `estudiantes` no tiene `grado_id` propio),
+  `?search=` (LIKE sobre `nombres`, `apellidos` y `codigo_estudiante`, agrupado en un
+  `where()` para no romper el resto de filtros), y `?per_page=` (acotado a `[1, 100]`,
+  default 15; `?page=` ya funcionaba nativo con `paginate()`).
+- Igual que los filtros anteriores (`?grado_id=`/`?seccion_id=`), se documentan en el texto
+  de `#[SwaggerSummary(...)]` de cada `index`, porque el paquete `laravel/swagger` no tiene
+  atributo dedicado a query params.
+
+### 4. Búsqueda de estudiante por `qr_token`
+Nueva ruta `GET /api/estudiantes/qr/{qr_token}` → `EstudianteController::showByQrToken()`,
+registrada antes del `apiResource('estudiantes', ...)` en el mismo grupo (sin colisión real
+con `/api/estudiantes/{estudiante}`: distinto número de segmentos). Busca por
+`where('qr_token', $qr_token)->firstOrFail()`, sin filtrar por `estado` — se devuelve el
+estudiante exista activo o inactivo; el futuro módulo de asistencia decide si rechaza
+marcar asistencia a uno inactivo. Documentado con los mismos atributos Swagger que `show()`.
+
+### 5. Tests automatizados
+Se agregaron `database/factories/GradoFactory.php`, `SeccionFactory.php` (con
+`grado_id => Grado::factory()`) y `EstudianteFactory.php` (con
+`seccion_id => Seccion::factory()` y `qr_token` generado en la factory para creaciones
+directas en tests, independientes del `Str::uuid()` del controlador), cada una con un
+estado `inactivo()`/`inactiva()` para los casos de error.
+
+`tests/Feature/GradoControllerTest.php`, `SeccionControllerTest.php` y
+`EstudianteControllerTest.php` (con `RefreshDatabase`, corren contra SQLite in-memory vía
+`phpunit.xml`, sin cambios ahí) cubren los 5 endpoints de cada módulo con casos de éxito y
+error, incluidas las reglas de integridad nuevas, los filtros, la búsqueda, `per_page` y el
+endpoint de QR. Total: 53 tests, 117 assertions, todos en verde.
+
+### 6. Motor de base de datos en producción
+Revisado `config/database.php`, `.env`/`.env.example`, `composer.json` y `CLAUDE.md`: **no
+hay ningún motor de producción decidido ni documentado** — todo (dev y tests) corre sobre
+SQLite por defecto, sin driver de MySQL/Postgres pineado ni CI configurado. No se encontró
+SQL crudo, `PRAGMA`, ni nada específico de SQLite en migraciones o código de aplicación; los
+tipos usados (`boolean`, `uuid`, FKs con `restrictOnDelete()`/`cascadeOnUpdate()`, unique
+simple y compuesto) son estándar de Laravel y deberían portar a MySQL/Postgres sin cambios
+de código. El único matiz es que SQLite solo aplica FKs si `foreign_key_constraints` está en
+`true` (ya lo está por defecto en `config/database.php`); en MySQL/Postgres `RESTRICT`/
+`CASCADE` siempre se aplican a nivel de motor. Esto queda como aviso para el equipo, no como
+pendiente de código.
+
+---
+
+## 6. Flujo de Git
 
 ```bash
 git checkout main
@@ -437,11 +526,10 @@ git checkout -b feature/crud-estudiantes
 Cada rama se crea desde `main` ya actualizado con el módulo anterior fusionado, respetando
 la dependencia de claves foráneas (Grado → Sección → Estudiante).
 
-## 6. Pendientes fuera de alcance de esta etapa
+## 7. Pendientes fuera de alcance de esta etapa
 
 - Autenticación/autorización real (Sanctum ya está instalado, solo falta activarlo y
   definir roles/políticas).
-- Borrado físico y manejo de conflictos 409 (si se decide exponerlo más adelante).
+- Borrado físico (si se decide exponerlo más adelante).
 - Endpoint de regeneración de `qr_token` (p. ej. carnet perdido) — no solicitado todavía.
-- Tests automatizados (Feature tests de Pest/PHPUnit) — se sugieren en cada módulo pero no
-  son obligatorios para esta etapa; se recomienda agregarlos si el tiempo lo permite.
+- Decisión y validación del motor de base de datos de producción (ver sección 5.6).
