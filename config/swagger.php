@@ -8,7 +8,7 @@ use Laravel\Swagger\Constants\ThemeSwagger;
 
 return [
     'options' => [
-        'theme' => ThemeSwagger::X_CODE_LIGHT,
+        'theme' => ThemeSwagger::SELOREX_SWAGGER,
     ],
     'document' => [
         'openapi' => '3.1.1',
