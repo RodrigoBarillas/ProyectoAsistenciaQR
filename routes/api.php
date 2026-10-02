@@ -57,13 +57,28 @@ Route::prefix('v1')->group(function () {
         });
 
         // ── Grados ────────────────────────────────────────────────────────────
-        Route::apiResource('grados', GradoController::class);
+        Route::apiResource('grados', GradoController::class)
+            ->middlewareFor(['index', 'show'], 'permission:grado.view')
+            ->middlewareFor('store', 'permission:grado.create')
+            ->middlewareFor('update', 'permission:grado.edit')
+            ->middlewareFor('destroy', 'permission:grado.delete');
 
         // ── Secciones ─────────────────────────────────────────────────────────
-        Route::apiResource('secciones', SeccionController::class)->parameters(['secciones' => 'seccion']);
+        Route::apiResource('secciones', SeccionController::class)
+            ->parameters(['secciones' => 'seccion'])
+            ->middlewareFor(['index', 'show'], 'permission:seccion.view')
+            ->middlewareFor('store', 'permission:seccion.create')
+            ->middlewareFor('update', 'permission:seccion.edit')
+            ->middlewareFor('destroy', 'permission:seccion.delete');
 
         // ── Estudiantes ───────────────────────────────────────────────────────
-        Route::get('estudiantes/qr/{qr_token}', [EstudianteController::class, 'showByQrToken']);
-        Route::apiResource('estudiantes', EstudianteController::class);
+        Route::get('estudiantes/qr/{qr_token}', [EstudianteController::class, 'showByQrToken'])
+            ->middleware('permission:estudiante.view');
+
+        Route::apiResource('estudiantes', EstudianteController::class)
+            ->middlewareFor(['index', 'show'], 'permission:estudiante.view')
+            ->middlewareFor('store', 'permission:estudiante.create')
+            ->middlewareFor('update', 'permission:estudiante.edit')
+            ->middlewareFor('destroy', 'permission:estudiante.delete');
     });
 });

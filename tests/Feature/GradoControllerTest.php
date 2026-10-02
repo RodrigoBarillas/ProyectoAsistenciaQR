@@ -4,19 +4,21 @@ namespace Tests\Feature;
 
 use App\Models\Grado;
 use App\Models\Seccion;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AuthenticatesWithPermissions;
 use Tests\TestCase;
 
 class GradoControllerTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, AuthenticatesWithPermissions;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->actingAs(User::factory()->create(), 'api');
+        $this->actingAsUserWithPermissions([
+            'grado.view', 'grado.create', 'grado.edit', 'grado.delete',
+        ]);
     }
 
     public function test_index_lista_grados_paginados(): void
@@ -144,5 +146,14 @@ class GradoControllerTest extends TestCase
         $response = $this->deleteJson("/api/v1/grados/{$grado->id}");
 
         $response->assertOk()->assertJsonPath('data.estado', false);
+    }
+
+    public function test_store_rechaza_usuario_sin_permiso_grado_create(): void
+    {
+        $this->actingAsUserWithPermissions(['grado.view']);
+
+        $response = $this->postJson('/api/v1/grados', ['nombre' => 'Primero Básico']);
+
+        $response->assertForbidden();
     }
 }

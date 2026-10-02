@@ -5,19 +5,21 @@ namespace Tests\Feature;
 use App\Models\Estudiante;
 use App\Models\Grado;
 use App\Models\Seccion;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AuthenticatesWithPermissions;
 use Tests\TestCase;
 
 class SeccionControllerTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, AuthenticatesWithPermissions;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->actingAs(User::factory()->create(), 'api');
+        $this->actingAsUserWithPermissions([
+            'seccion.view', 'seccion.create', 'seccion.edit', 'seccion.delete',
+        ]);
     }
 
     public function test_index_lista_secciones_paginadas(): void
@@ -185,5 +187,15 @@ class SeccionControllerTest extends TestCase
 
         $response->assertUnprocessable()->assertJsonValidationErrors('estado');
         $this->assertDatabaseHas('secciones', ['id' => $seccion->id, 'estado' => true]);
+    }
+
+    public function test_store_rechaza_usuario_sin_permiso_seccion_create(): void
+    {
+        $this->actingAsUserWithPermissions(['seccion.view']);
+        $grado = Grado::factory()->create();
+
+        $response = $this->postJson('/api/v1/secciones', ['nombre' => 'A', 'grado_id' => $grado->id]);
+
+        $response->assertForbidden();
     }
 }

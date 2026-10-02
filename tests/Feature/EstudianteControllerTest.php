@@ -5,19 +5,21 @@ namespace Tests\Feature;
 use App\Models\Estudiante;
 use App\Models\Grado;
 use App\Models\Seccion;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AuthenticatesWithPermissions;
 use Tests\TestCase;
 
 class EstudianteControllerTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, AuthenticatesWithPermissions;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->actingAs(User::factory()->create(), 'api');
+        $this->actingAsUserWithPermissions([
+            'estudiante.view', 'estudiante.create', 'estudiante.edit', 'estudiante.delete',
+        ]);
     }
 
     public function test_index_lista_estudiantes_paginados(): void
@@ -255,5 +257,20 @@ class EstudianteControllerTest extends TestCase
         $response = $this->getJson('/api/v1/estudiantes/qr/00000000-0000-0000-0000-000000000000');
 
         $response->assertNotFound();
+    }
+
+    public function test_store_rechaza_usuario_sin_permiso_estudiante_create(): void
+    {
+        $this->actingAsUserWithPermissions(['estudiante.view']);
+        $seccion = Seccion::factory()->create();
+
+        $response = $this->postJson('/api/v1/estudiantes', [
+            'codigo_estudiante' => 'EST-001',
+            'nombres' => 'Ana',
+            'apellidos' => 'Pérez',
+            'seccion_id' => $seccion->id,
+        ]);
+
+        $response->assertForbidden();
     }
 }
