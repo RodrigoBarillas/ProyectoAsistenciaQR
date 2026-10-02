@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Estudiante;
 use App\Models\Grado;
 use App\Models\Seccion;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -12,11 +13,18 @@ class SeccionControllerTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->actingAs(User::factory()->create(), 'api');
+    }
+
     public function test_index_lista_secciones_paginadas(): void
     {
         Seccion::factory()->count(3)->create();
 
-        $response = $this->getJson('/api/secciones');
+        $response = $this->getJson('/api/v1/secciones');
 
         $response->assertOk()->assertJsonCount(3, 'data');
     }
@@ -27,7 +35,7 @@ class SeccionControllerTest extends TestCase
         Seccion::factory()->count(2)->create(['grado_id' => $grado->id]);
         Seccion::factory()->create();
 
-        $response = $this->getJson("/api/secciones?grado_id={$grado->id}");
+        $response = $this->getJson("/api/v1/secciones?grado_id={$grado->id}");
 
         $response->assertOk()->assertJsonCount(2, 'data');
     }
@@ -37,7 +45,7 @@ class SeccionControllerTest extends TestCase
         Seccion::factory()->count(2)->create();
         Seccion::factory()->inactiva()->create();
 
-        $response = $this->getJson('/api/secciones?estado=false');
+        $response = $this->getJson('/api/v1/secciones?estado=false');
 
         $response->assertOk()->assertJsonCount(1, 'data');
     }
@@ -46,7 +54,7 @@ class SeccionControllerTest extends TestCase
     {
         $grado = Grado::factory()->create();
 
-        $response = $this->postJson('/api/secciones', ['nombre' => 'A', 'grado_id' => $grado->id]);
+        $response = $this->postJson('/api/v1/secciones', ['nombre' => 'A', 'grado_id' => $grado->id]);
 
         $response->assertCreated()->assertJsonPath('data.nombre', 'A');
         $this->assertDatabaseHas('secciones', ['nombre' => 'A', 'grado_id' => $grado->id]);
@@ -58,7 +66,7 @@ class SeccionControllerTest extends TestCase
         $gradoDos = Grado::factory()->create();
         Seccion::factory()->create(['nombre' => 'A', 'grado_id' => $gradoUno->id]);
 
-        $response = $this->postJson('/api/secciones', ['nombre' => 'A', 'grado_id' => $gradoDos->id]);
+        $response = $this->postJson('/api/v1/secciones', ['nombre' => 'A', 'grado_id' => $gradoDos->id]);
 
         $response->assertCreated();
     }
@@ -68,14 +76,14 @@ class SeccionControllerTest extends TestCase
         $grado = Grado::factory()->create();
         Seccion::factory()->create(['nombre' => 'A', 'grado_id' => $grado->id]);
 
-        $response = $this->postJson('/api/secciones', ['nombre' => 'A', 'grado_id' => $grado->id]);
+        $response = $this->postJson('/api/v1/secciones', ['nombre' => 'A', 'grado_id' => $grado->id]);
 
         $response->assertUnprocessable()->assertJsonValidationErrors('nombre');
     }
 
     public function test_store_rechaza_grado_inexistente(): void
     {
-        $response = $this->postJson('/api/secciones', ['nombre' => 'A', 'grado_id' => 999]);
+        $response = $this->postJson('/api/v1/secciones', ['nombre' => 'A', 'grado_id' => 999]);
 
         $response->assertUnprocessable()->assertJsonValidationErrors('grado_id');
     }
@@ -84,7 +92,7 @@ class SeccionControllerTest extends TestCase
     {
         $grado = Grado::factory()->inactivo()->create();
 
-        $response = $this->postJson('/api/secciones', ['nombre' => 'A', 'grado_id' => $grado->id]);
+        $response = $this->postJson('/api/v1/secciones', ['nombre' => 'A', 'grado_id' => $grado->id]);
 
         $response->assertUnprocessable()->assertJsonValidationErrors('grado_id');
     }
@@ -93,14 +101,14 @@ class SeccionControllerTest extends TestCase
     {
         $seccion = Seccion::factory()->create();
 
-        $response = $this->getJson("/api/secciones/{$seccion->id}");
+        $response = $this->getJson("/api/v1/secciones/{$seccion->id}");
 
         $response->assertOk()->assertJsonPath('data.id', $seccion->id);
     }
 
     public function test_show_devuelve_404_si_no_existe(): void
     {
-        $response = $this->getJson('/api/secciones/999');
+        $response = $this->getJson('/api/v1/secciones/999');
 
         $response->assertNotFound();
     }
@@ -109,7 +117,7 @@ class SeccionControllerTest extends TestCase
     {
         $seccion = Seccion::factory()->create(['nombre' => 'A']);
 
-        $response = $this->putJson("/api/secciones/{$seccion->id}", [
+        $response = $this->putJson("/api/v1/secciones/{$seccion->id}", [
             'nombre' => 'B',
             'grado_id' => $seccion->grado_id,
         ]);
@@ -121,7 +129,7 @@ class SeccionControllerTest extends TestCase
     {
         $seccion = Seccion::factory()->create(['nombre' => 'A']);
 
-        $response = $this->putJson("/api/secciones/{$seccion->id}", [
+        $response = $this->putJson("/api/v1/secciones/{$seccion->id}", [
             'nombre' => 'A',
             'grado_id' => $seccion->grado_id,
         ]);
@@ -134,7 +142,7 @@ class SeccionControllerTest extends TestCase
         $seccion = Seccion::factory()->create();
         $gradoInactivo = Grado::factory()->inactivo()->create();
 
-        $response = $this->putJson("/api/secciones/{$seccion->id}", [
+        $response = $this->putJson("/api/v1/secciones/{$seccion->id}", [
             'nombre' => $seccion->nombre,
             'grado_id' => $gradoInactivo->id,
         ]);
@@ -146,7 +154,7 @@ class SeccionControllerTest extends TestCase
     {
         $grado = Grado::factory()->create();
 
-        $response = $this->putJson('/api/secciones/999', ['nombre' => 'A', 'grado_id' => $grado->id]);
+        $response = $this->putJson('/api/v1/secciones/999', ['nombre' => 'A', 'grado_id' => $grado->id]);
 
         $response->assertNotFound();
     }
@@ -155,7 +163,7 @@ class SeccionControllerTest extends TestCase
     {
         $seccion = Seccion::factory()->create();
 
-        $response = $this->deleteJson("/api/secciones/{$seccion->id}");
+        $response = $this->deleteJson("/api/v1/secciones/{$seccion->id}");
 
         $response->assertOk()->assertJsonPath('data.estado', false);
         $this->assertDatabaseHas('secciones', ['id' => $seccion->id, 'estado' => false]);
@@ -163,7 +171,7 @@ class SeccionControllerTest extends TestCase
 
     public function test_destroy_devuelve_404_si_no_existe(): void
     {
-        $response = $this->deleteJson('/api/secciones/999');
+        $response = $this->deleteJson('/api/v1/secciones/999');
 
         $response->assertNotFound();
     }
@@ -173,7 +181,7 @@ class SeccionControllerTest extends TestCase
         $seccion = Seccion::factory()->create();
         Estudiante::factory()->create(['seccion_id' => $seccion->id, 'estado' => true]);
 
-        $response = $this->deleteJson("/api/secciones/{$seccion->id}");
+        $response = $this->deleteJson("/api/v1/secciones/{$seccion->id}");
 
         $response->assertUnprocessable()->assertJsonValidationErrors('estado');
         $this->assertDatabaseHas('secciones', ['id' => $seccion->id, 'estado' => true]);
