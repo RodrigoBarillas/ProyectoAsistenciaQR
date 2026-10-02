@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Authentication\AuthController;
+use App\Http\Controllers\GradoController;
 use App\Http\Controllers\Permission\PermissionController;
 use App\Http\Controllers\Role\RoleController;
 use Illuminate\Support\Facades\Route;
@@ -52,5 +53,8 @@ Route::prefix('v1')->group(function () {
                 ->middleware('permission:role.assign')
                 ->name('destroy');
         });
+
+        // ── Grados ────────────────────────────────────────────────────────────
+        Route::apiResource('grados', GradoController::class);
     });
 });
