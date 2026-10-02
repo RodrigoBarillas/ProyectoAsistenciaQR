@@ -7,12 +7,13 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
 
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'role_id', 'status'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements JWTSubject
 {
@@ -29,7 +30,18 @@ class User extends Authenticatable implements JWTSubject
         return [
             'email_verified_at' => 'datetime',
             'password'          => 'hashed',
+            'status'            => 'boolean',
         ];
+    }
+
+    /**
+     * Role assigned to this user.
+     *
+     * @return BelongsTo<Role, User>
+     */
+    public function role(): BelongsTo
+    {
+        return $this->belongsTo(Role::class);
     }
 
     /**
@@ -42,6 +54,14 @@ class User extends Authenticatable implements JWTSubject
         return $this->hasMany(RefreshToken::class, 'tokenable_id')
             ->where('tokenable_type', self::class)
             ->where('name', 'refresh_token');
+    }
+
+    /**
+     * Check if the user's role has a specific permission.
+     */
+    public function hasPermission(string $permission): bool
+    {
+        return $this->role?->hasPermission($permission) ?? false;
     }
 
     /**
@@ -62,4 +82,5 @@ class User extends Authenticatable implements JWTSubject
         return [];
     }
 }
+
 
