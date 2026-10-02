@@ -1,0 +1,77 @@
+COMO LEVANTAR EL PROYECTO (ProyectoAsistenciaQR)
+=================================================
+
+Requisitos ya instalados en esta maquina:
+- PHP 8.5 y Composer (via php.new, en %USERPROFILE%\.config\herd-lite\bin, ya agregado al PATH)
+- Docker Desktop, con un contenedor llamado "mysql-DB" (imagen mysql, puerto 3306)
+- Dependencias de PHP ya instaladas (carpeta vendor/)
+- Archivo .env ya configurado para MySQL
+
+Con eso, el dia a dia es solo esto:
+
+1) Encender la base de datos
+   docker start mysql-DB
+
+   (si ya esta corriendo no pasa nada; puedes verificar con: docker ps)
+
+2) Levantar el servidor
+   php artisan serve
+
+   Deja esa terminal abierta. Veras algo como:
+   "Server running on [http://127.0.0.1:8000]"
+
+   Para apagarlo: Ctrl + C
+
+3) Probarlo en el navegador
+   - http://127.0.0.1:8000/docs       -> interfaz Swagger, prueba los endpoints con botones
+   - http://127.0.0.1:8000/api/grados -> deberia responder JSON con la lista de grados
+
+
+SOLO LA PRIMERA VEZ (o si algo se rompe / se borra)
+----------------------------------------------------
+
+a) Instalar dependencias de PHP:
+   composer install
+
+b) Crear el archivo .env si no existe:
+   copy .env.example .env
+   php artisan key:generate
+
+   Luego editar .env y poner:
+   DB_CONNECTION=mysql
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_DATABASE=asistencia_qr
+   DB_USERNAME=root
+   DB_PASSWORD=
+
+c) Crear la base de datos dentro del contenedor (si no existe todavia):
+   docker exec mysql-DB mysql -uroot -padmin -e "CREATE DATABASE IF NOT EXISTS asistencia_qr CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+d) Crear las tablas (migraciones):
+   php artisan migrate
+
+   Si quieres borrar todo y empezar de cero (CUIDADO: borra los datos):
+   php artisan migrate:fresh
+
+
+CORRER LAS PRUEBAS AUTOMATIZADAS (opcional)
+---------------------------------------------
+   php artisan test
+
+   Esto no toca la base de datos MySQL real: las pruebas usan una base temporal en
+   memoria (SQLite), asi que se pueden correr las veces que quieras sin riesgo.
+
+
+PROBLEMAS COMUNES
+------------------
+- "Connection refused" o error de base de datos al abrir /api/grados:
+  el contenedor mysql-DB no esta corriendo -> docker start mysql-DB
+
+- El puerto 8000 ya esta en uso:
+  php artisan serve --port=8001
+  (y luego usar http://127.0.0.1:8001 en el navegador)
+
+- Cambios en el codigo no se reflejan:
+  normalmente no hace falta reiniciar nada, Laravel lee los archivos en cada
+  peticion. Si algo raro pasa, prueba: php artisan config:clear
