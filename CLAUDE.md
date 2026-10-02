@@ -15,10 +15,14 @@ es consumido por un frontend separado (no vive en este repo).
   contraseña real. Las pruebas de feature (`php artisan test`) siguen corriendo contra
   SQLite in-memory (`phpunit.xml`), independiente de la base de datos de la app — no
   requiere el contenedor levantado.
-- Auth: `laravel/sanctum` ^4.0 instalado y configurado (`config/sanctum.php`, migración de
-  `personal_access_tokens`), pero **no activado** en ninguna ruta de negocio todavía
-  (solo protege `GET /api/user`). Las rutas CRUD actuales dejan el middleware comentado y
-  listo para activarse cuando el equipo implemente autenticación real.
+- Auth: real, vía JWT (`php-open-source-saver/jwt-auth`, guard `api` en `config/auth.php`
+  con driver `jwt`). Implementado por otro miembro del equipo (login/refresh/logout, roles
+  y permisos con middleware `permission:<nombre>`) en `routes/api.php` bajo
+  `Route::prefix('v1')`. Requiere `JWT_SECRET` en `.env` (generar con
+  `php artisan jwt:secret --force` si falta) y en `phpunit.xml` para los tests. `laravel/sanctum`
+  sigue instalado pero ya no es el mecanismo de auth activo. Los 3 módulos CRUD
+  (Grados/Secciones/Estudiantes) están dentro del grupo `Route::middleware('auth')` — todo
+  endpoint requiere un JWT válido, pero no exigen ningún `permission:` específico todavía.
 - Documentación de API: paquete `laravel/swagger` (en realidad
   `epmyas2022/laravel-swagger` v0.3.0, instalado vía repositorio VCS en `composer.json`,
   **no** `l5-swagger`/`zircote/swagger-php`). Se documenta con **atributos PHP nativos**
@@ -40,15 +44,19 @@ app/
   Models/             # modelos Eloquent, usan atributos PHP (#[Fillable([...])]) en vez
                        # de las propiedades clásicas $fillable/$hidden
 routes/
-  api.php             # todas las rutas de la API (sin prefijo de versión por ahora)
+  api.php             # todas las rutas bajo Route::prefix('v1'); auth/roles/permisos de
+                       # otro módulo + Grados/Secciones/Estudiantes, todo dentro de
+                       # Route::middleware('auth')
 database/
-  migrations/         # ya definidas para grados, secciones, estudiantes, asistencias,
-                       # roles, administradores, users
+  migrations/         # grados, secciones, estudiantes, asistencias, roles, permissions,
+                       # role_permission, administradores, users
 docs/
   PLAN-CRUDS.md       # plan detallado de los CRUD de Grados/Secciones/Estudiantes
 ```
 
-No existen (todavía) carpetas `app/Exceptions`, `app/Services`, ni API versionada.
+No existen (todavía) carpetas `app/Exceptions` ni `app/Services` propias de estos 3
+módulos (sí existen `app/Services/Authentication`, `.../Permission`, `.../Role` del módulo
+de auth de otro compañero). La API ya está versionada: todo vive bajo `/api/v1/...`.
 
 ## Convenciones de código (establecidas para los módulos CRUD)
 
@@ -94,7 +102,8 @@ foráneas.
 
 ## Pendientes conocidos (fuera de alcance actual)
 
-- Activar autenticación/autorización real sobre las rutas CRUD (Sanctum ya instalado).
+- Decidir si los endpoints de Grados/Secciones/Estudiantes deben exigir un `permission:`
+  específico (como los de Roles) o si basta con estar autenticado, como está ahora.
 - Decidir si se expone borrado físico en el futuro (hoy es solo lógico vía `estado`).
-- Modelos/controladores para `asistencias`, `roles`, `administradores` (no son
-  responsabilidad de estos 3 módulos).
+- Modelos/controladores para `asistencias`, `administradores` (no son responsabilidad de
+  estos 3 módulos). `roles`/`permissions` ya los implementó otro miembro del equipo.

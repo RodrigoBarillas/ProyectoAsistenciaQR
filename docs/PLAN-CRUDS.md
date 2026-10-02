@@ -5,6 +5,11 @@
 > Orden de trabajo: **Grados → Secciones → Estudiantes**, cada uno en su propia rama
 > (`feature/crud-grados`, `feature/crud-secciones`, `feature/crud-estudiantes`) creada
 > desde `main` actualizado.
+>
+> **Actualización:** las tablas de endpoints de las secciones 2-4 reflejan las rutas tal
+> como quedaron en cada rama original (`/api/grados`, sin auth). Desde la integración con
+> el módulo de autenticación (sección 6), todas viven bajo `/api/v1/...` y requieren JWT —
+> ver sección 6 para el detalle.
 
 ## 0. Contexto del proyecto (ver también `CLAUDE.md`)
 
@@ -507,7 +512,56 @@ de datos de test dedicada y ajustar `phpunit.xml`.
 
 ---
 
-## 6. Flujo de Git
+## 6. Integración con el módulo de autenticación (rebase sobre `master` actualizado)
+
+> **Contexto:** mientras `feature/ajustes-cruds` se desarrollaba (basada en un `master`
+> viejo, commit `b3dad29`), otro miembro del equipo mergeó a `master` un módulo completo de
+> autenticación/roles/permisos (PRs #3 y #4: `feature/auth`), que reescribió por completo
+> `routes/api.php` (antes plano, sin versión ni auth) y agregó `php-open-source-saver/jwt-auth`
+> como mecanismo real de login. Antes de abrir el PR de este trabajo se rebaseó
+> `feature/ajustes-cruds` sobre el `master` actualizado para integrar ambos.
+
+### Qué cambió por la integración
+- **Rutas versionadas y protegidas:** `routes/api.php` ya no es un archivo plano — todo
+  vive bajo `Route::prefix('v1')`, y las rutas de autenticación quedan fuera del grupo
+  protegido mientras que Roles/Permisos/Grados/Secciones/Estudiantes quedan dentro de
+  `Route::middleware('auth')`. Las URLs pasaron de `/api/grados` a `/api/v1/grados`
+  (análogo para `secciones`/`estudiantes`), y **ahora requieren un JWT válido** en el header
+  `Authorization: Bearer <token>` — antes no exigían nada.
+- **No se agregó ningún `permission:<nombre>` propio todavía** a Grados/Secciones/
+  Estudiantes (a diferencia de Roles, que sí los tiene) — basta con estar autenticado. Si el
+  equipo decide requerir permisos granulares (p. ej. `grados.view`, `grados.manage`), hay
+  que coordinarlo con quien mantiene `PermissionEnum`/`PermissionSeeder`, porque hoy no
+  existen entradas para estos 3 recursos.
+- **`JWT_SECRET` requerido:** se generó con `php artisan jwt:secret --force` para `.env`
+  local, y se agregó un valor fijo de prueba a `phpunit.xml` (`JWT_SECRET`) para que los
+  tests de feature puedan autenticar usuarios sin depender de un secreto real.
+- **Dependencias:** `composer install` ahora instala `php-open-source-saver/jwt-auth` y
+  `lcobucci/jwt`, que requieren la extensión PHP `sodium`. En esta máquina no estaba
+  disponible, así que se instaló con `--ignore-platform-req=ext-sodium` solo para poder
+  verificar el código localmente — **si `sodium` sigue sin estar disponible en el entorno
+  real, algunos algoritmos de firma JWT que dependan de ella podrían fallar**; no es un
+  problema introducido por estos 3 módulos, pero vale la pena que el equipo lo revise antes
+  de desplegar.
+- **Migraciones nuevas del módulo de auth:** `permissions`, `role_permission`, y un cambio
+  en la migración de `asistencias` (ajena a estos 3 módulos). `php artisan migrate:fresh` se
+  volvió a correr contra MySQL sin problemas tras el rebase.
+
+### Tests de feature actualizados
+Los 53 tests de `GradoControllerTest`/`SeccionControllerTest`/`EstudianteControllerTest` se
+actualizaron para:
+- Usar las URLs con prefijo `/api/v1/...`.
+- Autenticarse en cada test: `setUp()` ahora crea un usuario (`User::factory()->create()`) y
+  llama a `$this->actingAs($user, 'api')`, que sí funciona con el guard `jwt` del paquete
+  (resuelve el usuario directamente sin pasar por un token real). No se probaron los casos
+  de "sin token" / "token inválido" (401) porque esos pertenecen al módulo de auth, no a
+  estos 3 CRUDs.
+
+Todo verificado con `php artisan test` (53/53 en verde) después del rebase.
+
+---
+
+## 7. Flujo de Git
 
 ```bash
 git checkout main
@@ -532,9 +586,8 @@ git checkout -b feature/crud-estudiantes
 Cada rama se crea desde `main` ya actualizado con el módulo anterior fusionado, respetando
 la dependencia de claves foráneas (Grado → Sección → Estudiante).
 
-## 7. Pendientes fuera de alcance de esta etapa
+## 8. Pendientes fuera de alcance de esta etapa
 
-- Autenticación/autorización real (Sanctum ya está instalado, solo falta activarlo y
-  definir roles/políticas).
+- Definir si Grados/Secciones/Estudiantes necesitan `permission:` granulares (ver sección 6).
 - Borrado físico (si se decide exponerlo más adelante).
 - Endpoint de regeneración de `qr_token` (p. ej. carnet perdido) — no solicitado todavía.
