@@ -7,9 +7,14 @@ es consumido por un frontend separado (no vive en este repo).
 
 - Laravel 13, PHP ^8.3 (entorno local corre PHP 8.5 vía `php.new`, instalado en
   `%USERPROFILE%\.config\herd-lite\bin`).
-- Base de datos: SQLite por defecto (`DB_CONNECTION=sqlite`, `.env.example` como
-  referencia; no hay `.env` ni `database/database.sqlite` creados todavía — hay que
-  generarlos antes de `php artisan migrate`).
+- Base de datos: MySQL (`DB_CONNECTION=mysql`), corriendo en un contenedor Docker local
+  (`mysql-DB`, imagen `mysql`, puerto `3306` publicado en el host). Base de datos
+  `asistencia_qr`, usuario `root` (sin usuario/base de datos dedicados creados por el
+  contenedor — se crearon a mano con `CREATE DATABASE`). Credenciales reales en `.env`
+  (no versionado); `.env.example` trae la forma esperada de las variables `DB_*` sin la
+  contraseña real. Las pruebas de feature (`php artisan test`) siguen corriendo contra
+  SQLite in-memory (`phpunit.xml`), independiente de la base de datos de la app — no
+  requiere el contenedor levantado.
 - Auth: `laravel/sanctum` ^4.0 instalado y configurado (`config/sanctum.php`, migración de
   `personal_access_tokens`), pero **no activado** en ninguna ruta de negocio todavía
   (solo protege `GET /api/user`). Las rutas CRUD actuales dejan el middleware comentado y

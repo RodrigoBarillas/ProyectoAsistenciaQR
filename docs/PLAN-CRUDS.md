@@ -487,17 +487,23 @@ estado `inactivo()`/`inactiva()` para los casos de error.
 error, incluidas las reglas de integridad nuevas, los filtros, la búsqueda, `per_page` y el
 endpoint de QR. Total: 53 tests, 117 assertions, todos en verde.
 
-### 6. Motor de base de datos en producción
-Revisado `config/database.php`, `.env`/`.env.example`, `composer.json` y `CLAUDE.md`: **no
-hay ningún motor de producción decidido ni documentado** — todo (dev y tests) corre sobre
-SQLite por defecto, sin driver de MySQL/Postgres pineado ni CI configurado. No se encontró
-SQL crudo, `PRAGMA`, ni nada específico de SQLite en migraciones o código de aplicación; los
-tipos usados (`boolean`, `uuid`, FKs con `restrictOnDelete()`/`cascadeOnUpdate()`, unique
-simple y compuesto) son estándar de Laravel y deberían portar a MySQL/Postgres sin cambios
-de código. El único matiz es que SQLite solo aplica FKs si `foreign_key_constraints` está en
-`true` (ya lo está por defecto en `config/database.php`); en MySQL/Postgres `RESTRICT`/
-`CASCADE` siempre se aplican a nivel de motor. Esto queda como aviso para el equipo, no como
-pendiente de código.
+### 6. Motor de base de datos — decidido: MySQL
+En una iteración posterior a este plan se decidió el motor: **MySQL**, corriendo en un
+contenedor Docker local (`mysql-DB`, imagen `mysql`, puerto `3306`). Se creó la base de
+datos `asistencia_qr` a mano (`CREATE DATABASE`, el contenedor no trae `MYSQL_DATABASE`
+configurado) y se actualizó `DB_CONNECTION=mysql` + `DB_HOST`/`DB_PORT`/`DB_DATABASE`/
+`DB_USERNAME`/`DB_PASSWORD` en `.env` (credenciales reales, no versionado) y en
+`.env.example` (forma de las variables, sin contraseña real). Se verificó `php artisan
+migrate:fresh` y los 3 CRUDs completos (incluida la regla de integridad 422 de Grados)
+contra MySQL sin cambios de código — confirma lo anticipado: ni las migraciones ni los
+controladores tenían nada específico de SQLite. `database/database.sqlite` ya no se usa y
+se eliminó (está en `.gitignore`, se regenera solo si alguien vuelve a necesitar SQLite).
+
+Las pruebas de feature (`php artisan test`) siguen corriendo contra SQLite in-memory vía
+`phpunit.xml` — es una decisión independiente de la base de datos de la app (tests más
+rápidos, sin depender de que el contenedor esté levantado) y no quedó pendiente de este
+cambio; si en el futuro se quiere probar contra MySQL específicamente, requeriría una base
+de datos de test dedicada y ajustar `phpunit.xml`.
 
 ---
 
@@ -532,4 +538,3 @@ la dependencia de claves foráneas (Grado → Sección → Estudiante).
   definir roles/políticas).
 - Borrado físico (si se decide exponerlo más adelante).
 - Endpoint de regeneración de `qr_token` (p. ej. carnet perdido) — no solicitado todavía.
-- Decisión y validación del motor de base de datos de producción (ver sección 5.6).
