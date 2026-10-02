@@ -293,9 +293,82 @@ convención existente (`Route::apiResource('example', ExampleController::class)`
 
 ---
 
-## 4. Módulo Estudiantes — `feature/crud-estudiantes`
+## 4. Módulo Estudiantes — `feature/crud-estudiantes` ✅ Terminado
 
-### Archivos a crear
+> **Estado:** implementado, probado manualmente (éxito y error en los 5 endpoints,
+> incluida la inmutabilidad de `qr_token` y el filtro `?seccion_id=`) y documentado en
+> Swagger. Pendiente de PR/merge (decisión del equipo).
+
+### Notas de implementación (diferencias respecto al plan original)
+
+- **Rama base real:** igual que con Secciones, se creó `feature/crud-estudiantes` a
+  partir de `feature/crud-secciones` (que ya contiene `master` actualizado + los módulos
+  de Grados y Secciones) en vez de `main`, porque `main` solo tiene el commit inicial
+  vacío y Estudiantes depende del modelo `Seccion`.
+- **Sin necesidad de `$table` explícito ni de renombrar el parámetro de ruta:** a
+  diferencia de `Seccion` (ver nota del módulo de Secciones), `Str::plural(Str::snake('Estudiante'))`
+  da `estudiantes` (coincide con la tabla real) y `Str::singular('estudiantes')` da
+  `estudiante` (coincide con el nombre natural del recurso). Verificado con
+  `php -r "echo Illuminate\Support\Str::singular('estudiantes');"` antes de implementar.
+  Por eso el parámetro de ruta es simplemente `{estudiante}` (no un nombre distinto como
+  pasó con `seccione`), aunque se mantiene el mismo patrón de `show/update/destroy` con
+  `string $estudiante` + `Estudiante::findOrFail($estudiante)` en vez de route-model-binding,
+  por la misma limitación de `laravel/swagger` documentada en el módulo de Grados.
+- **Generación de `qr_token` sin mass assignment:** `qr_token` **no** está en el array de
+  `#[Fillable([...])]` del modelo (no es un campo de entrada del cliente), así que
+  `Estudiante::create($request->validated())` lo dejaría fuera del `INSERT` y violaría la
+  restricción `NOT NULL` de la columna. `store()` resuelve esto con
+  `new Estudiante($request->validated())`, asigna `$estudiante->qr_token = Str::uuid();`
+  como propiedad directa (no sujeta a la protección de mass assignment) y recién entonces
+  llama a `->save()`, de modo que el `INSERT` incluye el UUID en una sola operación.
+- **`qr_token` inmutable en `update()`:** no fue necesario ningún filtro adicional —
+  `UpdateEstudianteRequest::rules()` no declara `qr_token`, así que `$request->validated()`
+  nunca lo incluye aunque el cliente lo envíe en el body. Probado enviando un `qr_token`
+  arbitrario en `PUT`: la respuesta conserva el UUID original.
+- **`EstudianteResource` incluye la sección y el grado anidados:** `seccion_id` (escalar) y
+  `seccion` (objeto vía `SeccionResource`, que a su vez anida `grado` vía `GradoResource`).
+  El controlador hace eager loading (`with('seccion.grado')` / `load('seccion.grado')`) en
+  los 5 métodos para evitar N+1.
+- **Filtro `?seccion_id=` en `index`:** mismo patrón que el filtro `?grado_id=` de
+  Secciones (`when($request->filled('seccion_id'), ...)`), documentado en el texto de
+  `#[SwaggerSummary(...)]` por la misma limitación del paquete `laravel/swagger` (no
+  documenta query params, solo path params y request body).
+
+### Archivos creados
+
+| Archivo | Resultado |
+|---|---|
+| `app/Models/Estudiante.php` | `#[Fillable(['codigo_estudiante','nombres','apellidos','seccion_id','estado'])]` (sin `qr_token`, ver nota arriba), cast `estado` a boolean, `seccion(): BelongsTo` |
+| `app/Http/Controllers/EstudianteController.php` | CRUD completo; `show/update/destroy` usan `string $estudiante` + `findOrFail`; `index` con filtro `?seccion_id=` y eager loading `seccion.grado`; `store` genera `qr_token` antes de `save()` |
+| `app/Http/Requests/StoreEstudianteRequest.php` | `codigo_estudiante` único, `nombres`/`apellidos` requeridos, `seccion_id` + `exists:secciones,id`, `estado` opcional |
+| `app/Http/Requests/UpdateEstudianteRequest.php` | Igual que Store, con `Rule::unique('estudiantes','codigo_estudiante')->ignore($this->route('estudiante'))` |
+| `app/Http/Resources/EstudianteResource.php` | `id`, `codigo_estudiante`, `nombres`, `apellidos`, `qr_token`, `seccion_id`, `seccion` (anidada), `estado`, timestamps |
+
+### Archivos modificados
+- `routes/api.php`: agregado `Route::apiResource('estudiantes', EstudianteController::class)`
+  dentro del mismo grupo (middleware comentado) que `grados`/`secciones`.
+- `app/Models/Seccion.php`: sin cambios — `estudiantes(): HasMany` ya existía desde el
+  módulo anterior.
+
+### Pruebas realizadas (manual, vía `curl` contra `php artisan serve`)
+- `GET /api/estudiantes` — lista vacía y con 2+ registros → 200; con `?seccion_id=`,
+  filtra correctamente (verificado con estudiantes en secciones distintas).
+- `POST /api/estudiantes` — creación válida → 201 (incluye `qr_token` UUID y la sección/grado
+  anidados); sin `codigo_estudiante` → 422; `codigo_estudiante` duplicado → 422;
+  `seccion_id` inexistente → 422; `nombres` > 100 caracteres → 422; enviando un `qr_token`
+  propio en el body → 201 y se ignora (se genera uno nuevo por el backend).
+- `GET /api/estudiantes/{id}` — detalle existente → 200; id inexistente → 404.
+- `PUT /api/estudiantes/{id}` — edición válida → 200; conservar el propio
+  `codigo_estudiante` (verifica `ignore()`) → 200; renombrar a un `codigo_estudiante` ya
+  usado por otro estudiante → 422; enviando un `qr_token` distinto → 200 con el `qr_token`
+  original sin cambios; id inexistente → 404.
+- `DELETE /api/estudiantes/{id}` — inactivación (`estado=false`, fila persiste) → 200; id
+  inexistente → 404.
+- Documentación verificada en `/api-docs` (JSON: paths `/api/estudiantes` y
+  `/api/estudiantes/{estudiante}` con parámetro `estudiante`, schemas de
+  `Store`/`UpdateEstudianteRequest`) y en `/docs` (UI Swagger, carga 200).
+
+### Archivos a crear (plan original, referencia)
 | Archivo | Propósito |
 |---|---|
 | `app/Models/Estudiante.php` | `belongsTo(Seccion::class)` |
