@@ -172,9 +172,87 @@ convención existente (`Route::apiResource('example', ExampleController::class)`
 
 ---
 
-## 3. Módulo Secciones — `feature/crud-secciones`
+## 3. Módulo Secciones — `feature/crud-secciones` ✅ Terminado
 
-### Archivos a crear
+> **Estado:** implementado, probado manualmente (éxito y error en los 5 endpoints, incluida
+> la regla de unicidad compuesta y el filtro `?grado_id=`) y documentado en Swagger.
+> Pendiente de PR/merge (decisión del equipo).
+
+### Notas de implementación (diferencias respecto al plan original)
+
+- **Rama base real:** igual que con Grados, `main` solo tiene el commit inicial vacío y
+  el módulo de Grados (`feature/crud-grados`) todavía no está mergeado a `master`/`main`.
+  Como Secciones depende del modelo `Grado`, `feature/crud-secciones` se creó a partir de
+  `feature/crud-grados` (que ya contiene `master` actualizado + el módulo de Grados) en
+  vez de `main`, para no tener que mergear nada a la rama principal.
+- **`protected $table = 'secciones'`:** Eloquent infiere el nombre de tabla pluralizando
+  en inglés el nombre de la clase (`Seccion` → `seccions`), lo que no coincide con la
+  tabla real `secciones` y producía un `QueryException` (`no such table: seccions`) en
+  todos los endpoints. Se agregó la propiedad `$table` explícita en el modelo. Esto no
+  afecta a `Grado` (`Grado` → `Grados` sí coincide con la pluralización en inglés) pero
+  **aplica también al modelo `Estudiante`** del próximo módulo si su plural en inglés no
+  coincide con `estudiantes` (sí coincide, `Estudiante` → `Estudiantes`, así que no haría
+  falta ahí, pero conviene revisarlo al implementarlo).
+- **Parámetro de ruta `{seccione}` en vez de `{seccion}`:** `Route::apiResource` también
+  pluraliza/singulariza en inglés para nombrar el parámetro de ruta; `secciones` singulariza
+  a `seccione` (no `seccion`). Seguimos el mismo patrón que `GradoController` (parámetros
+  escalares `string` en vez de route-model-binding, ver nota del módulo de Grados), pero
+  el argumento del método se nombró `$seccione` (no `$seccion`) para que coincida
+  exactamente con el nombre real del parámetro de ruta — así el body del método resuelve
+  bien el valor y el paquete `laravel/swagger` documenta el path param con el nombre
+  correcto (`/api/secciones/{seccione}` con parámetro `seccione`, verificado en
+  `/api-docs`). En `UpdateSeccionRequest` esto implica usar `$this->route('seccione')`
+  en vez del acceso mágico `$this->seccion` (que ya no resuelve a nada porque no hay
+  ninguna clave `seccion` en la request ni en los parámetros de ruta).
+- **Unicidad compuesta `(grado_id, nombre)`:** implementada con
+  `Rule::unique('secciones')->where(fn ($q) => $q->where('grado_id', $this->grado_id))`,
+  más `->ignore(...)` en `UpdateSeccionRequest`. Probado: mismo nombre en grados distintos
+  se permite; mismo nombre repetido en el mismo grado da 422; editar una sección
+  conservando su propio nombre no dispara el error (gracias a `ignore`).
+- **`SeccionResource` incluye el grado relacionado:** se agregó `grado_id` (el escalar) y
+  `grado` (objeto completo vía `GradoResource` + `whenLoaded`) en la respuesta. El
+  controlador hace eager loading (`with('grado')` / `load('grado')`) en los 5 métodos para
+  evitar N+1.
+- **Filtro `?grado_id=` en `index`:** implementado con `when($request->filled('grado_id'), ...)`
+  sobre el query builder; no hay atributo Swagger dedicado a documentar query params en el
+  paquete `laravel/swagger` (solo path params y request body), así que el filtro se
+  describe en el texto de `#[SwaggerSummary(...)]`, igual que los códigos de error en el
+  módulo de Grados.
+
+### Archivos creados
+
+| Archivo | Resultado |
+|---|---|
+| `app/Models/Seccion.php` | `#[Fillable(['nombre','grado_id','estado'])]`, `$table = 'secciones'` (ver nota arriba), cast `estado` a boolean, `grado(): BelongsTo`, `estudiantes(): HasMany` |
+| `app/Http/Controllers/SeccionController.php` | CRUD completo; `show/update/destroy` usan `string $seccione` (ver nota arriba); `index` con filtro `?grado_id=` y eager loading |
+| `app/Http/Requests/StoreSeccionRequest.php` | `nombre` + unique compuesto con `grado_id`, `grado_id` + `exists:grados,id`, `estado` opcional |
+| `app/Http/Requests/UpdateSeccionRequest.php` | Igual que Store, con `Rule::unique(...)->ignore($this->route('seccione'))` |
+| `app/Http/Resources/SeccionResource.php` | `id`, `nombre`, `grado_id`, `grado` (anidado), `estado`, timestamps |
+
+### Archivos modificados
+- `routes/api.php`: agregado `Route::apiResource('secciones', SeccionController::class)`
+  dentro del mismo grupo (middleware comentado) que `grados`.
+- `app/Models/Grado.php`: sin cambios — `secciones(): HasMany` ya existía desde el módulo
+  anterior.
+
+### Pruebas realizadas (manual, vía `curl` contra `php artisan serve`)
+- `GET /api/secciones` — lista vacía y con 2+ registros → 200; con `?grado_id=`, filtra
+  correctamente.
+- `POST /api/secciones` — creación válida → 201 (incluye el grado anidado); `nombre`
+  repetido en el mismo `grado_id` → 422; mismo `nombre` en `grado_id` distinto → 201
+  (permitido); sin `nombre` → 422; `nombre` > 20 caracteres → 422; `grado_id` inexistente
+  → 422; `grado_id` faltante → 422.
+- `GET /api/secciones/{id}` — detalle existente → 200; id inexistente → 404.
+- `PUT /api/secciones/{id}` — edición válida → 200; conservar el propio `nombre` (verifica
+  `ignore()`) → 200; renombrar a un `nombre` ya usado en el mismo grado → 422; id
+  inexistente → 404.
+- `DELETE /api/secciones/{id}` — inactivación (`estado=false`, fila persiste) → 200; id
+  inexistente → 404.
+- Documentación verificada en `/api-docs` (JSON: path `/api/secciones/{seccione}` con
+  parámetro `seccione` correctamente emparejado, schemas de `Store`/`UpdateSeccionRequest`
+  con `nombre`/`grado_id`/`estado`) y en `/docs` (UI Swagger, carga 200).
+
+### Archivos a crear (plan original, referencia)
 | Archivo | Propósito |
 |---|---|
 | `app/Models/Seccion.php` | `belongsTo(Grado::class)`, `hasMany(Estudiante::class)` |
