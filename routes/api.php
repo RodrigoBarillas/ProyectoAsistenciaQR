@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Authentication\AuthController;
+use App\Http\Controllers\EstudianteController;
 use App\Http\Controllers\GradoController;
 use App\Http\Controllers\Permission\PermissionController;
 use App\Http\Controllers\Role\RoleController;
@@ -60,5 +61,8 @@ Route::prefix('v1')->group(function () {
 
         // ── Secciones ─────────────────────────────────────────────────────────
         Route::apiResource('secciones', SeccionController::class);
+
+        // ── Estudiantes ───────────────────────────────────────────────────────
+        Route::apiResource('estudiantes', EstudianteController::class);
     });
 });
