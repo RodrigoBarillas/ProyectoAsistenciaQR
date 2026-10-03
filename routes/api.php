@@ -1,8 +1,11 @@
 <?php
 
 use App\Http\Controllers\Authentication\AuthController;
+use App\Http\Controllers\EstudianteController;
+use App\Http\Controllers\GradoController;
 use App\Http\Controllers\Permission\PermissionController;
 use App\Http\Controllers\Role\RoleController;
+use App\Http\Controllers\SeccionController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -52,5 +55,30 @@ Route::prefix('v1')->group(function () {
                 ->middleware('permission:role.assign')
                 ->name('destroy');
         });
+
+        // ── Grados ────────────────────────────────────────────────────────────
+        Route::apiResource('grados', GradoController::class)
+            ->middlewareFor(['index', 'show'], 'permission:grado.view')
+            ->middlewareFor('store', 'permission:grado.create')
+            ->middlewareFor('update', 'permission:grado.edit')
+            ->middlewareFor('destroy', 'permission:grado.delete');
+
+        // ── Secciones ─────────────────────────────────────────────────────────
+        Route::apiResource('secciones', SeccionController::class)
+            ->parameters(['secciones' => 'seccion'])
+            ->middlewareFor(['index', 'show'], 'permission:seccion.view')
+            ->middlewareFor('store', 'permission:seccion.create')
+            ->middlewareFor('update', 'permission:seccion.edit')
+            ->middlewareFor('destroy', 'permission:seccion.delete');
+
+        // ── Estudiantes ───────────────────────────────────────────────────────
+        Route::get('estudiantes/qr/{qr_token}', [EstudianteController::class, 'showByQrToken'])
+            ->middleware('permission:estudiante.view');
+
+        Route::apiResource('estudiantes', EstudianteController::class)
+            ->middlewareFor(['index', 'show'], 'permission:estudiante.view')
+            ->middlewareFor('store', 'permission:estudiante.create')
+            ->middlewareFor('update', 'permission:estudiante.edit')
+            ->middlewareFor('destroy', 'permission:estudiante.delete');
     });
 });

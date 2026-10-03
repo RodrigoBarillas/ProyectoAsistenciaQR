@@ -1,0 +1,121 @@
+COMO LEVANTAR EL PROYECTO (ProyectoAsistenciaQR)
+=================================================
+
+Requisitos ya instalados en esta maquina:
+- PHP 8.5 y Composer (via php.new, en %USERPROFILE%\.config\herd-lite\bin, ya agregado al PATH)
+- Docker Desktop, con un contenedor llamado "mysql-DB" (imagen mysql, puerto 3306)
+- Dependencias de PHP ya instaladas (carpeta vendor/, incluye el modulo de auth con JWT)
+- Archivo .env ya configurado para MySQL y con JWT_SECRET generado
+
+IMPORTANTE: desde que se integro el modulo de autenticacion de otro compañero, TODOS los
+endpoints (incluidos Grados/Secciones/Estudiantes) viven bajo /api/v1/... y requieren
+iniciar sesion primero (login con JWT). Ya no existen endpoints publicos sin token.
+
+Con eso, el dia a dia es solo esto:
+
+1) Encender la base de datos
+   docker start mysql-DB
+
+   (si ya esta corriendo no pasa nada; puedes verificar con: docker ps)
+
+2) Levantar el servidor
+   php artisan serve
+
+   Deja esa terminal abierta. Veras algo como:
+   "Server running on [http://127.0.0.1:8000]"
+
+   Para apagarlo: Ctrl + C
+
+3) Iniciar sesion para obtener un token (en OTRA terminal, con el servidor corriendo)
+
+   Usuarios de prueba que crea el seeder (ver paso "f" mas abajo si no existen todavia):
+   - admin@uped.edu.sv            / password   (rol Administrador)
+   - carlos.mendoza@uped.edu.sv   / password   (rol Docente)
+
+   curl -X POST http://127.0.0.1:8000/api/v1/auth/login -H "Content-Type: application/json" -d "{\"email\":\"admin@uped.edu.sv\",\"password\":\"password\"}"
+
+   La respuesta trae el token en data.token.access_token. Copialo (es largo, empieza con
+   "eyJ...").
+
+4) Probar un endpoint protegido con el token
+
+   curl http://127.0.0.1:8000/api/v1/grados -H "Authorization: Bearer PEGA_AQUI_EL_TOKEN"
+
+   Deberia responder JSON con la lista de grados (vacia si la base esta recien creada).
+
+   Para Postman/Insomnia: igual, agregar el header Authorization con el valor
+   "Bearer <token>" en cada request a /api/v1/...
+
+5) Ver la documentacion en el navegador
+   - http://127.0.0.1:8000/docs -> interfaz Swagger con todos los endpoints documentados
+     (el modulo de Grados/Secciones/Estudiantes esta ahi, pero probar "Try it out" en el
+     navegador puede no enviar el token automaticamente -> mejor usar curl/Postman del
+     paso 3-4 para probar los endpoints protegidos).
+
+
+SOLO LA PRIMERA VEZ (o si algo se rompe / se borra)
+----------------------------------------------------
+
+a) Instalar dependencias de PHP:
+   composer install
+
+   Si da error pidiendo la extension "sodium" (la usa el paquete de JWT) y no la tienes
+   instalada en PHP, se puede instalar ignorando ese chequeo solo para desarrollo local:
+   composer install --ignore-platform-req=ext-sodium
+   (avisar al equipo si esto pasa tambien en el servidor real, ahi si hay que resolverlo).
+
+b) Crear el archivo .env si no existe:
+   copy .env.example .env
+   php artisan key:generate
+   php artisan jwt:secret --force
+
+   Luego editar .env y poner:
+   DB_CONNECTION=mysql
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_DATABASE=asistencia_qr
+   DB_USERNAME=root
+   DB_PASSWORD=
+
+c) Crear la base de datos dentro del contenedor (si no existe todavia):
+   docker exec mysql-DB mysql -uroot -padmin -e "CREATE DATABASE IF NOT EXISTS asistencia_qr CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+d) Crear las tablas (migraciones):
+   php artisan migrate
+
+   Si quieres borrar todo y empezar de cero (CUIDADO: borra los datos):
+   php artisan migrate:fresh
+
+e) Si quieres usuarios/roles de prueba para poder hacer login (recomendado):
+   php artisan db:seed
+
+   O junto con las migraciones de una vez:
+   php artisan migrate:fresh --seed
+
+
+CORRER LAS PRUEBAS AUTOMATIZADAS (opcional)
+---------------------------------------------
+   php artisan test
+
+   Esto no toca la base de datos MySQL real: las pruebas usan una base temporal en
+   memoria (SQLite), asi que se pueden correr las veces que quieras sin riesgo. Los tests
+   de Grados/Secciones/Estudiantes ya simulan un usuario autenticado por su cuenta, no
+   necesitas hacer login para que pasen.
+
+
+PROBLEMAS COMUNES
+------------------
+- "Connection refused" o error de base de datos al abrir /api/v1/grados:
+  el contenedor mysql-DB no esta corriendo -> docker start mysql-DB
+
+- Status 401 "Unauthenticated" al llamar a un endpoint:
+  falta el header Authorization con el token, o el token ya expiro (dura 1 hora) ->
+  repetir el paso 3 (login) para sacar uno nuevo.
+
+- El puerto 8000 ya esta en uso:
+  php artisan serve --port=8001
+  (y luego usar http://127.0.0.1:8001 en el navegador/curl)
+
+- Cambios en el codigo no se reflejan:
+  normalmente no hace falta reiniciar nada, Laravel lee los archivos en cada
+  peticion. Si algo raro pasa, prueba: php artisan config:clear
