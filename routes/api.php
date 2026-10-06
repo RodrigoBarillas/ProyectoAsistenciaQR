@@ -6,6 +6,7 @@ use App\Http\Controllers\GradoController;
 use App\Http\Controllers\Permission\PermissionController;
 use App\Http\Controllers\Role\RoleController;
 use App\Http\Controllers\SeccionController;
+use App\Http\Controllers\AsistenciaController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -80,5 +81,10 @@ Route::prefix('v1')->group(function () {
             ->middlewareFor('store', 'permission:estudiante.create')
             ->middlewareFor('update', 'permission:estudiante.edit')
             ->middlewareFor('destroy', 'permission:estudiante.delete');
+
+        // ── Asistencias ───────────────────────────────────────────────────────
+        Route::post('asistencias/registrar', [AsistenciaController::class, 'registrar'])
+            ->middleware('permission:asistencia.mark')
+            ->name('asistencias.registrar');
     });
 });
