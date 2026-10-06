@@ -13,7 +13,7 @@ use Laravel\Swagger\Attributes\SwaggerResponse;
 use Laravel\Swagger\Attributes\SwaggerSection;
 use Laravel\Swagger\Attributes\SwaggerSummary;
 use App\Utils\ApiResponse;
-use AsistenciaMock;
+use App\Http\Mock\AsistenciaMock;
 use App\Enums\RoleEnum;
 use App\Http\Requests\RegistrarAsistenciaRequest;
 use Illuminate\Support\Facades\DB;
@@ -28,7 +28,7 @@ class AsistenciaController extends Controller
     // ──────────────────────────────────────────────────────────────────────────
 
     #[SwaggerSummary('Genera el QR para una sección (logo + degradado) devuelto en formato base64. El payload va cifrado.')]
-    #[SwaggerResponse([AsistenciaMock::GENERAR_QR_SUCCESS])]
+    #[SwaggerResponse(AsistenciaMock::GENERAR_QR_SUCCESS)]
     public function generarQr(Request $request, mixed $seccion): JsonResponse
     {
 
@@ -83,7 +83,7 @@ class AsistenciaController extends Controller
     // ──────────────────────────────────────────────────────────────────────────
 
     #[SwaggerSummary('El estudiante autenticado registra su asistencia escaneando el QR de su sección.')]
-    #[SwaggerResponse([AsistenciaMock::REGISTRAR_ASISTENCIA_SUCCESS])]
+    #[SwaggerResponse(AsistenciaMock::REGISTRAR_ASISTENCIA_SUCCESS)]
     public function registrar(RegistrarAsistenciaRequest $request): JsonResponse
     {
         $user = $request->user();
