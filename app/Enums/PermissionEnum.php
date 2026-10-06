@@ -113,6 +113,8 @@ enum PermissionEnum: string
     {
         return [
             self::ASISTENCIA_VIEW,
+            self::ASISTENCIA_MARK,
+
         ];
     }
 }

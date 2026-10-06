@@ -14,7 +14,8 @@
         "laravel/sanctum": "^4.0",
         "laravel/swagger": "^0.3.0",
         "laravel/tinker": "^3.0",
-        "php-open-source-saver/jwt-auth": "^2.9"
+        "php-open-source-saver/jwt-auth": "^2.9",
+        "simplesoftwareio/simple-qrcode": "^4.2"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
