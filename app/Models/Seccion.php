@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['nombre', 'grado_id', 'estado'])]
+#[Fillable(['nombre', 'grado_id', 'horario_id', 'estado'])]
 class Seccion extends Model
 {
     use HasFactory;
@@ -25,6 +25,11 @@ class Seccion extends Model
     public function grado(): BelongsTo
     {
         return $this->belongsTo(Grado::class);
+    }
+
+    public function horario(): BelongsTo
+    {
+        return $this->belongsTo(Horario::class);
     }
 
     public function estudiantes(): HasMany

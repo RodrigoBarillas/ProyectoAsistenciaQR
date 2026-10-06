@@ -83,6 +83,12 @@ Route::prefix('v1')->group(function () {
             ->middlewareFor('destroy', 'permission:estudiante.delete');
 
         // ── Asistencias ───────────────────────────────────────────────────────
+        // Teacher/admin generates a QR for a given section.
+        Route::get('asistencias/generar-qr/{seccion}', [AsistenciaController::class, 'generarQr'])
+            ->middleware('permission:asistencia.mark')
+            ->name('asistencias.generar-qr');
+
+        // Authenticated student scans the section QR to mark their own attendance.
         Route::post('asistencias/registrar', [AsistenciaController::class, 'registrar'])
             ->middleware('permission:asistencia.mark')
             ->name('asistencias.registrar');

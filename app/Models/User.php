@@ -57,6 +57,16 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
+     * Student profile linked to this user (only present when role is "estudiante").
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasOne<Estudiante>
+     */
+    public function estudiante(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Estudiante::class);
+    }
+
+    /**
      * Check if the user's role has a specific permission.
      */
     public function hasPermission(string $permission): bool
