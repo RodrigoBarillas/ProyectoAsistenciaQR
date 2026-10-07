@@ -11,17 +11,20 @@ class AuthResource extends JsonResource
     private string $refreshToken;
     private string $tokenType;
     private int    $expiresIn;
+    private $role;
 
     public function __construct(
         string $accessToken,
         string $refreshToken,
         string $tokenType = 'bearer',
         int    $expiresIn = 3600,
+        mixed $role = null
     ) {
         $this->accessToken  = $accessToken;
         $this->refreshToken = $refreshToken;
         $this->tokenType    = $tokenType;
         $this->expiresIn    = $expiresIn;
+        $this->role         = $role;
     }
 
     /**
@@ -34,6 +37,7 @@ class AuthResource extends JsonResource
                 'access_token'  => $this->accessToken,
                 'refresh_token' => $this->refreshToken,
                 'token_type'    => $this->tokenType,
+                'role'          => $this->role,
                 'expires_in'    => $this->expiresIn,
             ],
         ];
