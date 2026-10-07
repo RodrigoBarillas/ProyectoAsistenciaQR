@@ -12,7 +12,10 @@ abstract class AuthMock
         "data" => [
             "token" => [
                 "access_token" => "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9",
-                "expires_in" => 3600
+                'token_type' => 'bearer',
+                'refresh_token' => "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9",
+                "expires_in" => 3600,
+                "role" => "Administrador"
             ]
         ]
     ];
@@ -24,7 +27,10 @@ abstract class AuthMock
         "data" => [
             "token" => [
                 "access_token" => "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9",
-                "expires_in" => 3600
+                'token_type' => 'bearer',
+                'refresh_token' => "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9",
+                "expires_in" => 3600,
+                "role" => "Administrador"
             ]
         ]
     ];

@@ -35,11 +35,14 @@ class AuthService implements AuthServiceInterface
 
         $refreshToken = $this->issueRefreshToken($user);
 
+        $user->load('role');
+
         return new AuthResource(
             accessToken: $accessToken,
             refreshToken: $refreshToken,
             tokenType: 'bearer',
             expiresIn: Auth::factory()->getTTL() * 60,
+            role: $user?->role?->nombre
         );
     }
 
@@ -60,6 +63,8 @@ class AuthService implements AuthServiceInterface
         /** @var User $user */
         $user = $record->tokenable;
 
+        $user->load('role');
+
         $record->update(['last_used_at' => now()]);
 
         $accessToken = JWTAuth::fromUser($user);
@@ -71,6 +76,7 @@ class AuthService implements AuthServiceInterface
             refreshToken: $newRefreshToken,
             tokenType: 'bearer',
             expiresIn: Auth::factory()->getTTL() * 60,
+            role: $user?->role?->nombre
         );
     }
 
