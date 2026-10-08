@@ -1,0 +1,236 @@
+{
+  "info": {
+    "name": "ProyectoAsistenciaQR",
+    "description": "Flujo completo: login (docente y alumno) -> generar QR de sección -> registrar asistencia -> historial del alumno -> reporte agregado para docente/admin.\n\nUsa los datos sembrados por `php artisan db:seed` (ver README.md -> \"Datos de prueba\"). Antes de correr nada, levanta el backend con `php artisan serve`.\n\nOrden recomendado: carpeta 1 -> 2 -> 3, de arriba hacia abajo. Las requests de login y de \"Listar Secciones\" guardan automáticamente los tokens y el `seccion_id`/`grado_id` en las variables de la colección — no hace falta copiar nada a mano, salvo el paso de `qr_token_payload` (ver la descripción de \"Registrar Asistencia\").",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000/api/v1", "type": "string" },
+    { "key": "docente_token", "value": "", "type": "string" },
+    { "key": "alumno_token", "value": "", "type": "string" },
+    { "key": "seccion_id", "value": "", "type": "string" },
+    { "key": "grado_id", "value": "", "type": "string" },
+    { "key": "qr_token_payload", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Login Docente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body && body.data && body.data.token && body.data.token.access_token) {",
+                  "    pm.collectionVariables.set('docente_token', body.data.token.access_token);",
+                  "    console.log('docente_token guardado');",
+                  "} else {",
+                  "    console.warn('No se encontró access_token en la respuesta de login.');",
+                  "}",
+                  "pm.test('Login docente exitoso', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"carlos.mendoza@uped.edu.sv\",\n  \"password\": \"password\"\n}"
+            },
+            "url": "{{base_url}}/auth/login",
+            "description": "Docente de ejemplo sembrado por UserSeeder. Guarda el token en `docente_token` automáticamente (ver pestaña Tests de esta request)."
+          }
+        },
+        {
+          "name": "Login Alumno",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body && body.data && body.data.token && body.data.token.access_token) {",
+                  "    pm.collectionVariables.set('alumno_token', body.data.token.access_token);",
+                  "    console.log('alumno_token guardado');",
+                  "} else {",
+                  "    console.warn('No se encontró access_token en la respuesta de login.');",
+                  "}",
+                  "pm.test('Login alumno exitoso', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"luis.hernandez@uped.edu.sv\",\n  \"password\": \"password\"\n}"
+            },
+            "url": "{{base_url}}/auth/login",
+            "description": "Alumno de ejemplo (EST-002) sembrado por EstudianteSeeder. Se usa a Luis y no a Ana (EST-001) porque Ana ya tiene una asistencia de ejemplo sembrada para hoy — probar con ella daría 409 en \"Registrar Asistencia\". Guarda el token en `alumno_token` automáticamente."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Catálogo (Docente)",
+      "item": [
+        {
+          "name": "Listar Grados",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{docente_token}}", "type": "string" }]
+            },
+            "url": "{{base_url}}/grados",
+            "description": "Solo para confirmar que el login/token del docente funciona y ver los grados sembrados."
+          }
+        },
+        {
+          "name": "Listar Secciones",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const secciones = (body && body.data) || [];",
+                  "const objetivo = secciones.find(function (s) {",
+                  "    return s.nombre === 'A' && s.grado && s.grado.nombre === 'Primero Básico';",
+                  "});",
+                  "if (objetivo) {",
+                  "    pm.collectionVariables.set('seccion_id', objetivo.id);",
+                  "    pm.collectionVariables.set('grado_id', objetivo.grado_id);",
+                  "    console.log('seccion_id/grado_id guardados:', objetivo.id, objetivo.grado_id);",
+                  "} else {",
+                  "    console.warn('No se encontró la sección \"A\" de \"Primero Básico\" — ¿corriste `php artisan db:seed`?');",
+                  "}",
+                  "pm.test('Listado de secciones exitoso', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{docente_token}}", "type": "string" }]
+            },
+            "url": "{{base_url}}/secciones",
+            "description": "Busca la sección \"A\" de \"Primero Básico\" (la que EstudianteSeeder usa, ya tiene horario Matutino asignado) y guarda su id en `seccion_id` / `grado_id` automáticamente. Las siguientes requests ya la usan sin que tengas que copiar nada."
+          }
+        },
+        {
+          "name": "Listar Estudiantes de la Sección",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{docente_token}}", "type": "string" }]
+            },
+            "url": "{{base_url}}/estudiantes?seccion_id={{seccion_id}}",
+            "description": "Confirma qué estudiantes hay en la sección (deberías ver EST-001, EST-002, EST-003 si corriste el seeder)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Flujo de Asistencia",
+      "item": [
+        {
+          "name": "Generar QR de la Sección (Docente)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{docente_token}}", "type": "string" }]
+            },
+            "url": "{{base_url}}/asistencias/generar-qr/{{seccion_id}}",
+            "description": "Devuelve `data.qr_base64`: la IMAGEN del QR en base64, no el texto cifrado que va adentro — así está diseñado (solo se obtiene escaneando la imagen con una cámara).\n\nPara probar `Registrar Asistencia` sin escanear nada, genera el mismo payload por Tinker:\n\n```bash\nphp artisan tinker\n```\n```php\n$seccion = App\\Models\\Seccion::find({{seccion_id}});\necho Illuminate\\Support\\Facades\\Crypt::encrypt(['seccion_id' => $seccion->id, 'horario_id' => $seccion->horario_id, 'fecha' => now()->toDateString()]);\n```\n\nCopia el string que imprime y pégalo en la variable de colección `qr_token_payload` (ícono del ojo arriba a la derecha en Postman -> Edit)."
+          }
+        },
+        {
+          "name": "Registrar Asistencia (Alumno)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{alumno_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"qr_token\": \"{{qr_token_payload}}\"\n}"
+            },
+            "url": "{{base_url}}/asistencias/registrar",
+            "description": "Necesita que `qr_token_payload` ya tenga el valor del paso de Tinker (ver la request anterior).\n\nOjo con la hora: el horario \"Matutino\" sembrado es 07:00–12:00 con 10 min de tolerancia.\n- Entre 07:00 y 07:10 -> PRESENTE\n- Después de 07:10 -> TARDIA o AUSENTE según cuánto tiempo pasó\n- Fuera de esa ventana (p. ej. en la tarde) -> AUSENTE, con status 403 (igual queda guardado en la base de datos)\n\nSi corres esto dos veces el mismo día con el mismo alumno, la segunda vez da 409 (ya registrada hoy)."
+          }
+        },
+        {
+          "name": "Historial del Alumno",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{alumno_token}}", "type": "string" }]
+            },
+            "url": "{{base_url}}/asistencias/historial",
+            "description": "Solo las asistencias del alumno autenticado (Luis), paginadas."
+          }
+        },
+        {
+          "name": "Reporte Agregado (Docente)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{docente_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/asistencias/reporte?seccion_id={{seccion_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["asistencias", "reporte"],
+              "query": [
+                { "key": "seccion_id", "value": "{{seccion_id}}" },
+                { "key": "grado_id", "value": "{{grado_id}}", "disabled": true },
+                { "key": "estado", "value": "PRESENTE", "disabled": true },
+                { "key": "fecha_desde", "value": "2026-01-01", "disabled": true },
+                { "key": "fecha_hasta", "value": "2026-12-31", "disabled": true },
+                { "key": "per_page", "value": "15", "disabled": true }
+              ]
+            },
+            "description": "Asistencia de TODOS los estudiantes de la sección (no solo uno). Los filtros `grado_id`, `estado`, `fecha_desde`/`fecha_hasta` y `per_page` están puestos pero deshabilitados — activa los que quieras probar (click en el checkbox de cada uno, en la pestaña Params)."
+          }
+        }
+      ]
+    }
+  ]
+}
