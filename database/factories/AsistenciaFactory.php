@@ -17,10 +17,13 @@ class AsistenciaFactory extends Factory
     {
         return [
             'estudiante_id' => Estudiante::factory(),
-            // Unique per test run so creating several records for the same
-            // student (e.g. a history listing) doesn't collide with the
-            // (estudiante_id, fecha_asistencia) unique constraint.
-            'fecha_asistencia' => fake()->unique()->dateTimeBetween('-60 days', 'now')->format('Y-m-d'),
+            // Unique per calendar day (not just per timestamp) so creating
+            // several records for the same student (e.g. a history listing)
+            // doesn't collide with the (estudiante_id, fecha_asistencia)
+            // unique constraint — dateTimeBetween()'s unique() only guarantees
+            // distinct DateTime instants, which can still truncate to the
+            // same Y-m-d.
+            'fecha_asistencia' => now()->copy()->subDays(fake()->unique()->numberBetween(0, 365))->toDateString(),
             'hora_entrada' => now()->format('H:i:s'),
             'estado' => 'PRESENTE',
             'observaciones' => null,

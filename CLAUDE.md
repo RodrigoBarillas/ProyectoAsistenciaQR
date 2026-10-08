@@ -28,6 +28,13 @@ es consumido por un frontend separado (no vive en este repo).
   `estudiante.create`. Estos permisos ya existían en `PermissionEnum`/`PermissionSeeder`
   (hechos por el mismo compañero del módulo de auth) y ya estaban asignados a los roles
   Administrador/Docente/Alumno — solo faltaba conectarlos a las rutas.
+- CORS: `config/cors.php` existe (antes no estaba publicado, así que `HandleCors` —activo por
+  defecto en Laravel— no agregaba ningún header porque `cors.paths` quedaba vacío: CORS
+  estaba efectivamente apagado). Solo aplica a `api/*`. Orígenes permitidos vía
+  `CORS_ALLOWED_ORIGINS` en `.env` (coma-separados); el default cubre puertos típicos de
+  Vite/CRA en local hasta que el frontend tenga una URL definitiva.
+  `supports_credentials` queda en `false` porque la auth es JWT por header `Authorization`,
+  no por cookies.
 - Documentación de API: paquete `laravel/swagger` (en realidad
   `epmyas2022/laravel-swagger` v0.3.0, instalado vía repositorio VCS en `composer.json`,
   **no** `l5-swagger`/`zircote/swagger-php`). Se documenta con **atributos PHP nativos**
@@ -198,3 +205,16 @@ decisión del equipo/infra compartida).
   cual (le falta paginación, filtro de estudiante activo y tests).
 - Decidir si el endpoint `GET /v1/estudiantes/qr/{qr_token}` se conecta a algún flujo real
   o se retira (hoy no lo usa el módulo de asistencia).
+- **`generarQr()` requiere `ext-imagick`, no solo `ext-gd`** — pendiente de decisión en
+  equipo (consultarlo antes de tocar código): `simplesoftwareio/simple-qrcode` 4.2.0 (la
+  última versión del paquete) usa `ImagickImageBackEnd` para el formato `png`
+  incondicionalmente (`Generator::getFormatter()`), sin importar si `gd` está disponible;
+  `gd` solo lo usa para el `merge()` del logo y el degradado. El propio `composer.json` del
+  paquete ya avisa esto (`ext-imagick` en `"suggest"`, nota "Allows the generation of PNG
+  QrCodes"). Instalar Imagick+ImageMagick en Windows es frágil (el DLL de PHP tiene que
+  calzar exacto con la versión nativa de ImageMagick instalada). Alternativa sin esa
+  fragilidad: cambiar el formato a `svg` en `generarQr()` — no necesita `gd` ni `imagick`,
+  mantiene el degradado, pero pierde el logo superpuesto (el paquete solo lo soporta en
+  `png`, ver `Generator::generate()`) y cambia el mime type de la respuesta
+  (`image/svg+xml` en vez de `image/png`) — el frontend lo seguiría pudiendo mostrar en un
+  `<img>` sin problema, pero es un cambio de contrato que hay que avisar.
