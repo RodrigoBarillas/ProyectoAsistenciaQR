@@ -7,6 +7,7 @@ use App\Http\Controllers\Permission\PermissionController;
 use App\Http\Controllers\Role\RoleController;
 use App\Http\Controllers\SeccionController;
 use App\Http\Controllers\AsistenciaController;
+use App\Http\Controllers\ReporteAsistenciaController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -92,5 +93,9 @@ Route::prefix('v1')->group(function () {
         Route::post('asistencias/registrar', [AsistenciaController::class, 'registrar'])
             ->middleware('permission:asistencia.mark')
             ->name('asistencias.registrar');
+
+        Route::get('asistencias/historial', [ReporteAsistenciaController::class, 'historial'])
+        ->middleware('permission:asistencia.view')
+        ->name('asistencias.historial');
     });
 });
