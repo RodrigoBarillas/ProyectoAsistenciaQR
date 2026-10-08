@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/PHP-%5E8.3-777BB4?logo=php&logoColor=white" alt="PHP ^8.3">
   <img src="https://img.shields.io/badge/Auth-JWT-000000" alt="JWT Auth">
   <img src="https://img.shields.io/badge/DB-MySQL-4479A1?logo=mysql&logoColor=white" alt="MySQL">
-  <img src="https://img.shields.io/badge/Tests-69%2F70-success" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-72%2F73-success" alt="Tests">
 </p>
 
 ---
@@ -150,14 +150,20 @@ php artisan test
 ```
 
 Corre contra SQLite in-memory, no requiere el contenedor de MySQL levantado. El test que
-genera la imagen QR real se salta automáticamente si la extensión `gd` no está habilitada
-en el entorno (ver nota abajo).
+genera la imagen QR real se salta automáticamente si no están disponibles las extensiones
+`gd` **y** `imagick` (ver nota abajo).
 
 ## Notas conocidas del entorno
 
-- La generación de QR (`simplesoftwareio/simple-qrcode`) requiere la extensión `gd` de
-  PHP. Algunas instalaciones minimalistas de PHP (p. ej. `php.new`) no la traen por
-  defecto — sin ella, `generarQr()` no funciona y el test correspondiente se salta.
+- La generación de QR (`simplesoftwareio/simple-qrcode`) necesita **`gd` y `imagick`**,
+  no solo `gd` — el paquete usa Imagick para renderizar PNG sin importar si `gd` está
+  disponible (`gd` solo se usa para el logo/degradado superpuesto). Instalaciones
+  minimalistas de PHP (p. ej. `php.new`/herd-lite) no traen ninguna de las dos por
+  defecto. [Laravel Herd](https://herd.laravel.com) (la versión completa, no "lite") sí
+  trae `gd` y `sodium` listos, pero **no `imagick`** — sigue pendiente una decisión de
+  equipo entre instalar Imagick+ImageMagick (frágil en Windows) o cambiar `generarQr()` a
+  formato `svg` (sin esa dependencia, pero sin el logo superpuesto). Ver detalle en
+  `CLAUDE.md`.
 - `laravel/sanctum` sigue instalado pero **no** es el mecanismo de autenticación activo
   (se usa JWT vía el guard `api`).
 

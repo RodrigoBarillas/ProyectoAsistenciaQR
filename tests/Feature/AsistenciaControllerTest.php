@@ -72,8 +72,12 @@ class AsistenciaControllerTest extends TestCase
 
     public function test_generar_qr_devuelve_imagen_para_seccion_activa_con_horario(): void
     {
-        if (! extension_loaded('gd')) {
-            $this->markTestSkipped('La extensión ext-gd no está habilitada en este entorno; la requiere simplesoftwareio/simple-qrcode para generar la imagen.');
+        if (! extension_loaded('gd') || ! extension_loaded('imagick')) {
+            // simplesoftwareio/simple-qrcode 4.2.0 usa Imagick (no gd) para
+            // renderizar PNG — ver Generator::getFormatter(). gd solo hace
+            // falta para el merge del logo/degradado. Sin ambas, no hay forma
+            // de generar la imagen real en este entorno.
+            $this->markTestSkipped('Las extensiones ext-gd y ext-imagick no están ambas habilitadas en este entorno; simplesoftwareio/simple-qrcode las requiere para generar la imagen PNG.');
         }
 
         $horario = Horario::factory()->create();

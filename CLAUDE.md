@@ -205,3 +205,16 @@ decisión del equipo/infra compartida).
   cual (le falta paginación, filtro de estudiante activo y tests).
 - Decidir si el endpoint `GET /v1/estudiantes/qr/{qr_token}` se conecta a algún flujo real
   o se retira (hoy no lo usa el módulo de asistencia).
+- **`generarQr()` requiere `ext-imagick`, no solo `ext-gd`** — pendiente de decisión en
+  equipo (consultarlo antes de tocar código): `simplesoftwareio/simple-qrcode` 4.2.0 (la
+  última versión del paquete) usa `ImagickImageBackEnd` para el formato `png`
+  incondicionalmente (`Generator::getFormatter()`), sin importar si `gd` está disponible;
+  `gd` solo lo usa para el `merge()` del logo y el degradado. El propio `composer.json` del
+  paquete ya avisa esto (`ext-imagick` en `"suggest"`, nota "Allows the generation of PNG
+  QrCodes"). Instalar Imagick+ImageMagick en Windows es frágil (el DLL de PHP tiene que
+  calzar exacto con la versión nativa de ImageMagick instalada). Alternativa sin esa
+  fragilidad: cambiar el formato a `svg` en `generarQr()` — no necesita `gd` ni `imagick`,
+  mantiene el degradado, pero pierde el logo superpuesto (el paquete solo lo soporta en
+  `png`, ver `Generator::generate()`) y cambia el mime type de la respuesta
+  (`image/svg+xml` en vez de `image/png`) — el frontend lo seguiría pudiendo mostrar en un
+  `<img>` sin problema, pero es un cambio de contrato que hay que avisar.
