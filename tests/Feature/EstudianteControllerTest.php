@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Enums\RoleEnum;
 use App\Models\Estudiante;
 use App\Models\Grado;
+use App\Models\Role;
 use App\Models\Seccion;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\AuthenticatesWithPermissions;
@@ -91,6 +93,7 @@ class EstudianteControllerTest extends TestCase
 
     public function test_store_crea_un_estudiante_y_genera_qr_token(): void
     {
+        Role::create(['nombre' => RoleEnum::ALUMNO->value, 'descripcion' => 'Alumno', 'estado' => true]);
         $seccion = Seccion::factory()->create();
 
         $response = $this->postJson('/api/v1/estudiantes', [
@@ -98,6 +101,7 @@ class EstudianteControllerTest extends TestCase
             'nombres' => 'Ana Lucía',
             'apellidos' => 'Pérez López',
             'seccion_id' => $seccion->id,
+            'email' => 'ana.perez@example.com',
         ]);
 
         $response->assertCreated();
@@ -137,6 +141,7 @@ class EstudianteControllerTest extends TestCase
 
     public function test_store_ignora_qr_token_enviado_por_el_cliente(): void
     {
+        Role::create(['nombre' => RoleEnum::ALUMNO->value, 'descripcion' => 'Alumno', 'estado' => true]);
         $seccion = Seccion::factory()->create();
 
         $response = $this->postJson('/api/v1/estudiantes', [
@@ -144,6 +149,7 @@ class EstudianteControllerTest extends TestCase
             'nombres' => 'Ana',
             'apellidos' => 'Pérez',
             'seccion_id' => $seccion->id,
+            'email' => 'ana.perez@example.com',
             'qr_token' => 'token-falso-enviado-por-el-cliente',
         ]);
 

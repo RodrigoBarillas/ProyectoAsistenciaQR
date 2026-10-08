@@ -53,15 +53,23 @@ routes/
                        # otro módulo + Grados/Secciones/Estudiantes, todo dentro de
                        # Route::middleware('auth')
 database/
-  migrations/         # grados, secciones, estudiantes, asistencias, roles, permissions,
-                       # role_permission, administradores, users
+  migrations/         # grados, secciones, estudiantes, horarios, asistencias, roles,
+                       # permissions, role_permission, administradores, users
+  factories/          # Grado/Seccion/Estudiante/Horario/Asistencia/User
+  seeders/            # Horario/Role/Permission/User + Grado/Seccion/Estudiante/Asistencia
+                       # (datos de ejemplo encadenados para poder probar el flujo completo
+                       # sin Tinker)
 docs/
-  PLAN-CRUDS.md       # plan detallado de los CRUD de Grados/Secciones/Estudiantes
+  PLAN-CRUDS.md       # plan detallado de los CRUD de Grados/Secciones/Estudiantes (no
+                       # cubre Asistencia/Horario, documentados más abajo en este archivo)
 ```
 
-No existen (todavía) carpetas `app/Exceptions` ni `app/Services` propias de estos 3
-módulos (sí existen `app/Services/Authentication`, `.../Permission`, `.../Role` del módulo
-de auth de otro compañero). La API ya está versionada: todo vive bajo `/api/v1/...`.
+No existen (todavía) carpetas `app/Exceptions` propias de estos módulos (sí existen
+`app/Services/Authentication`, `.../Permission`, `.../Role` del módulo de auth de otro
+compañero, y `app/Http/Mock/` con clases `abstract` de solo constantes usadas como ejemplos
+de respuesta para los atributos `#[SwaggerResponse(...)]`, p. ej. `AsistenciaMock`). La API
+ya está versionada: todo vive bajo `/api/v1/...`. No existe modelo/controlador para
+`administradores` (solo la migración).
 
 ## Convenciones de código (establecidas para los módulos CRUD)
 
@@ -77,36 +85,116 @@ de auth de otro compañero). La API ya está versionada: todo vive bajo `/api/v1
 - **Swagger**: un `#[SwaggerSection('NombreDelRecurso')]` por controlador, tipar los
   métodos de escritura con su `FormRequest` correspondiente. Ver
   `app/Http/Controllers/ExampleController.php` como plantilla mínima ya existente.
+- **Tests**: un `tests/Feature/{Recurso}ControllerTest.php` por controlador, usando el
+  trait `tests/Concerns/AuthenticatesWithPermissions.php` (`actingAsUserWithPermissions()`)
+  para autenticar con un rol de prueba que solo tiene los permisos listados. Excepción: los
+  tests de `AsistenciaController` no pueden usar ese helper tal cual para los casos de
+  alumno, porque `registrar()`/`historial()` resuelven el `Estudiante` autenticado
+  comprobando el **nombre del rol** (`RoleEnum::ALUMNO`) y `estudiantes.user_id`, no solo el
+  permiso — ver el helper local `actingAsAlumno()` en
+  `tests/Feature/AsistenciaControllerTest.php`. Cada modelo tiene su `Factory` en
+  `database/factories/`.
 
-## Modelo de datos — Grados, Secciones, Estudiantes
+## Modelo de datos — Grados, Secciones, Estudiantes, Horarios, Asistencias
 
 - `grados`: `id`, `nombre` (string 50, **unique**), `estado` (bool, default true),
   timestamps.
+- `horarios`: `id`, `nombre` (string 50, **unique**), `estado` (bool), `tolerancia`
+  (unsignedSmallInteger, minutos de margen tras `hora_entrada` antes de marcar `TARDIA`),
+  `hora_entrada`/`hora_salida` (time), timestamps. Sembrados por `HorarioSeeder`
+  ("Matutino" 07:00–12:00, "Vespertino" 13:00–18:00, tolerancia 10 min).
 - `secciones`: `id`, `nombre` (string 20), `grado_id` (FK → `grados`, `restrictOnDelete`,
-  `cascadeOnUpdate`), `estado` (bool), timestamps. **Unique compuesto** `(grado_id,
-  nombre)` — el nombre de sección es único solo dentro de su grado, no globalmente.
+  `cascadeOnUpdate`), `horario_id` (FK → `horarios`, **nullable**, `nullOnDelete`) — una
+  sección sin horario asignado no puede generar QR de asistencia, ver más abajo —,
+  `estado` (bool), timestamps. **Unique compuesto** `(grado_id, nombre)` — el nombre de
+  sección es único solo dentro de su grado, no globalmente.
 - `estudiantes`: `id`, `codigo_estudiante` (string 30, unique), `nombres`/`apellidos`
   (string 100), `qr_token` (uuid, **unique, not nullable** — lo genera el backend con
   `Str::uuid()` al crear, nunca lo envía el cliente ni se edita después), `seccion_id`
-  (FK → `secciones`, `restrictOnDelete`, `cascadeOnUpdate`), `estado` (bool), timestamps.
-  No hay campos de fecha de nacimiento, DPI ni foto en el esquema actual.
+  (FK → `secciones`, `restrictOnDelete`, `cascadeOnUpdate`), `user_id` (FK → `users`,
+  **nullable, unique**, `nullOnDelete` — vincula el login del alumno con su perfil;
+  `EstudianteController::store()` crea el `User` con rol Alumno y contraseña temporal en la
+  misma transacción), `estado` (bool), timestamps. No hay campos de fecha de nacimiento,
+  DPI ni foto en el esquema actual.
 
-Jerarquía: `Grado hasMany Seccion`, `Seccion belongsTo Grado` + `hasMany Estudiante`,
-`Estudiante belongsTo Seccion`.
+  `qr_token` tiene su propio endpoint de consulta (`GET /v1/estudiantes/qr/{qr_token}`,
+  permiso `estudiante.view`) pero **no se usa en el flujo de asistencia actual** (ver
+  abajo) — queda reservado para un posible módulo futuro (p. ej. que alguien escanee el
+  carnet del alumno). Si no se construye ese módulo, vale la pena revisar si conviene
+  retirar el endpoint para no dejar superficie de API sin propósito claro.
+- `asistencias`: `id`, `estudiante_id` (FK → `estudiantes`, `restrictOnDelete`,
+  `cascadeOnUpdate`), `fecha_asistencia` (date), `hora_entrada` (time, nullable), `estado`
+  (**enum** `PRESENTE`/`TARDIA`/`AUSENTE` — nótese que, a diferencia de las demás tablas,
+  esta columna no es un booleano de borrado lógico sino el resultado del cálculo de
+  puntualidad), `observaciones` (string 255, nullable), `registrado_por` (FK → `users`,
+  nullable, `nullOnDelete` — quién marcó la asistencia), timestamps. **Unique compuesto**
+  `(estudiante_id, fecha_asistencia)` — un estudiante solo puede tener una asistencia por
+  día.
 
-Otras tablas ya migradas pero fuera del alcance de estos 3 módulos: `asistencias` (FK a
-`estudiantes`), `roles`, `administradores` (FK a `users`). Ninguna tiene modelo Eloquent
-todavía salvo `User`.
+Jerarquía: `Grado hasMany Seccion`, `Horario hasMany Seccion`, `Seccion belongsTo
+Grado/Horario` + `hasMany Estudiante`, `Estudiante belongsTo Seccion/User` + `hasMany
+Asistencia`, `Asistencia belongsTo Estudiante` + `belongsTo User` (como `registradoPor`).
+
+Modelo Eloquent `Administrador` **no existe todavía** (solo la migración `administradores`,
+FK a `users`) — sigue fuera de alcance mientras no se necesite gestionarlos vía API.
+
+## Módulo de Asistencia (QR de sección)
+
+A diferencia de lo que podría sugerir el nombre `estudiantes.qr_token`, el flujo de marcar
+asistencia **no** usa el QR individual del estudiante. Funciona al revés:
+
+1. El docente/admin autenticado (permiso `asistencia.mark`) pide
+   `GET /v1/asistencias/generar-qr/{seccion}`. `AsistenciaController::generarQr()` valida
+   que la sección esté activa y tenga un `horario` activo asignado, cifra
+   `{seccion_id, horario_id, fecha: hoy}` con `Crypt::encrypt()` y genera una imagen QR
+   (`simplesoftwareio/simple-qrcode`) en base64 con ese payload cifrado.
+2. El alumno autenticado (rol **Alumno** exacto — el controlador comprueba el nombre del
+   rol, no solo el permiso) escanea ese QR y hace `POST /v1/asistencias/registrar` con
+   `{"qr_token": "<payload cifrado>"}` (el nombre del campo es heredado, pero es el payload
+   de la sección, no el `qr_token` del estudiante). `AsistenciaController::registrar()`
+   descifra el payload, verifica que no haya expirado (debe ser la fecha de hoy) y que el
+   estudiante autenticado (resuelto vía `estudiantes.user_id`) pertenezca a esa sección,
+   calcula `PRESENTE`/`TARDIA`/`AUSENTE` comparando la hora actual contra
+   `horario.hora_entrada + horario.tolerancia`, evita duplicados del mismo día (constraint
+   único + chequeo explícito → 409) y persiste la fila en `asistencias` dentro de una
+   transacción.
+3. El alumno autenticado puede ver su propio historial con
+   `GET /v1/asistencias/historial` (permiso `asistencia.view`, paginado igual que los demás
+   `index()` del proyecto vía `per_page`) — es **self-view únicamente** (no hay, todavía,
+   un endpoint de reporte agregado por sección/grado/docente, aunque el permiso
+   `asistencia.report` ya existe en `PermissionEnum` sin ninguna ruta que lo use).
+
+`AsistenciaMock` (en `app/Http/Mock/`) son solo constantes de ejemplo para Swagger — no
+indican que la lógica sea simulada; todo lo anterior persiste de verdad en MySQL/SQLite.
+
+Hay una rama remota `feature/reportes` (sin fusionar) que intentó agregar un reporte/
+historial con una mezcla de nombres (`ReporteAsistenciaController::historial`) y sin
+paginación/filtro de estudiante activo/tests — no se fusionó tal cual; si se retoma un
+reporte agregado para Docente, usar el permiso `asistencia.report` (no `asistencia.view`,
+que es el de self-view) y revisar esa rama solo como referencia, no para mergear directo.
 
 ## Git
 
-Cada módulo/feature se trabaja en su propia rama creada desde `main` actualizado
+Cada módulo/feature se trabaja en su propia rama creada desde el branch base actualizado
 (`feature/crud-grados`, `feature/crud-secciones`, `feature/crud-estudiantes`, ...). Orden
 de trabajo de los CRUD: Grados → Secciones → Estudiantes, por la dependencia de llaves
 foráneas.
 
+**Ojo con `main` vs `master`**: el repo tiene ambas branches locales y remotas, pero
+`main`/`origin/main` (el default branch configurado en GitHub) solo tiene el commit inicial
+huérfano — todo el trabajo real (39 commits y contando) vive en `master`/`origin/master`.
+Ramas nuevas deben crearse desde `master`, no desde `main`, hasta que el equipo decida
+corregir el default branch en GitHub (no se tocó como parte de este trabajo, es una
+decisión del equipo/infra compartida).
+
 ## Pendientes conocidos (fuera de alcance actual)
 
 - Decidir si se expone borrado físico en el futuro (hoy es solo lógico vía `estado`).
-- Modelos/controladores para `asistencias`, `administradores` (no son responsabilidad de
-  estos 3 módulos). `roles`/`permissions` ya los implementó otro miembro del equipo.
+- Modelo/controlador para `administradores` (no es responsabilidad de los módulos
+  actuales). `roles`/`permissions` ya los implementó otro miembro del equipo.
+- Reporte agregado de asistencia para Docente/Admin (por sección/grado/rango de fechas,
+  permiso `asistencia.report`) — hoy solo existe el self-view de Alumno
+  (`asistencia.view`). Ver rama `feature/reportes` como referencia, no para mergear tal
+  cual (le falta paginación, filtro de estudiante activo y tests).
+- Decidir si el endpoint `GET /v1/estudiantes/qr/{qr_token}` se conecta a algún flujo real
+  o se retira (hoy no lo usa el módulo de asistencia).
