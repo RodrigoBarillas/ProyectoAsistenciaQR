@@ -28,6 +28,13 @@ es consumido por un frontend separado (no vive en este repo).
   `estudiante.create`. Estos permisos ya existían en `PermissionEnum`/`PermissionSeeder`
   (hechos por el mismo compañero del módulo de auth) y ya estaban asignados a los roles
   Administrador/Docente/Alumno — solo faltaba conectarlos a las rutas.
+- CORS: `config/cors.php` existe (antes no estaba publicado, así que `HandleCors` —activo por
+  defecto en Laravel— no agregaba ningún header porque `cors.paths` quedaba vacío: CORS
+  estaba efectivamente apagado). Solo aplica a `api/*`. Orígenes permitidos vía
+  `CORS_ALLOWED_ORIGINS` en `.env` (coma-separados); el default cubre puertos típicos de
+  Vite/CRA en local hasta que el frontend tenga una URL definitiva.
+  `supports_credentials` queda en `false` porque la auth es JWT por header `Authorization`,
+  no por cookies.
 - Documentación de API: paquete `laravel/swagger` (en realidad
   `epmyas2022/laravel-swagger` v0.3.0, instalado vía repositorio VCS en `composer.json`,
   **no** `l5-swagger`/`zircote/swagger-php`). Se documenta con **atributos PHP nativos**
