@@ -16,6 +16,7 @@ use App\Utils\ApiResponse;
 use App\Http\Mock\AsistenciaMock;
 use App\Enums\RoleEnum;
 use App\Http\Requests\RegistrarAsistenciaRequest;
+use App\Http\Resources\AsistenciaResource;
 use Illuminate\Support\Facades\DB;
 
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -152,6 +153,8 @@ class AsistenciaController extends Controller
                 ->exists();
 
             if ($yaRegistrada) {
+                DB::rollBack();
+
                 return ApiResponse::error('La asistencia ya fue registrada para hoy.', 409);
             }
 
@@ -169,12 +172,7 @@ class AsistenciaController extends Controller
                 return ApiResponse::error('Fuera del horario permitido. Registrado como AUSENTE.', 403);
             }
 
-            return ApiResponse::success([
-                'estudiante_id'    => $asistencia->estudiante_id,
-                'fecha_asistencia' => $asistencia->fecha_asistencia,
-                'hora_entrada'     => $asistencia->hora_entrada,
-                'observaciones'    => $asistencia->observaciones,
-            ]);
+            return ApiResponse::success(new AsistenciaResource($asistencia), 'Asistencia registrada correctamente.');
         } catch (BadRequestHttpException $e) {
             DB::rollBack();
             return ApiResponse::error($e->getMessage(), 400);
@@ -186,17 +184,45 @@ class AsistenciaController extends Controller
     }
 
 
-    private function descryptQrPayload(string $raw): ?array
+    // ──────────────────────────────────────────────────────────────────────────
+    // Attendance history — the authenticated student views their own records
+    // ──────────────────────────────────────────────────────────────────────────
+
+    #[SwaggerSummary('Historial paginado de las asistencias del estudiante autenticado, más recientes primero. Admite "per_page" (máx. 100) además de "page".')]
+    #[SwaggerResponse(AsistenciaMock::HISTORIAL_SUCCESS)]
+    public function historial(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $estudiante = Estudiante::where('user_id', $user->id)
+            ->where('estado', true)
+            ->first();
+
+        if (! $estudiante) {
+            return ApiResponse::error('No se encontró un estudiante activo asociado al usuario autenticado.', 404);
+        }
+
+        $perPage = min(max($request->integer('per_page', 15), 1), 100);
+
+        $asistencias = Asistencia::where('estudiante_id', $estudiante->id)
+            ->orderByDesc('fecha_asistencia')
+            ->orderByDesc('hora_entrada')
+            ->paginate($perPage);
+
+        return AsistenciaResource::collection($asistencias)->response();
+    }
+
+    private function descryptQrPayload(string $raw): array
     {
         try {
             $data = Crypt::decrypt($raw);
-
-            $this->validateQrPayload($data);
-
-            return $data;
         } catch (\Throwable) {
-            return null;
+            throw new BadRequestHttpException('El código QR no es válido.');
         }
+
+        $this->validateQrPayload($data);
+
+        return $data;
     }
 
     private function validateQrPayload(array $data)
