@@ -112,6 +112,8 @@ La API se documenta con atributos PHP nativos sobre los controladores (no `@OA\`
 http://localhost:8000/docs
 ```
 
+También hay una colección de Postman lista para importar en [`postman/ProyectoAsistenciaQR.postman_collection.json`](postman/ProyectoAsistenciaQR.postman_collection.json) — cubre el flujo completo (login docente/alumno, generar QR, registrar asistencia, historial, reporte) usando los datos de prueba del seeder, con los tokens e IDs guardándose solos entre requests.
+
 ## Módulos y endpoints
 
 Todas las rutas viven bajo `Route::prefix('v1')` y (salvo login) requieren JWT + el
