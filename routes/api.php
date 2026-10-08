@@ -92,5 +92,15 @@ Route::prefix('v1')->group(function () {
         Route::post('asistencias/registrar', [AsistenciaController::class, 'registrar'])
             ->middleware('permission:asistencia.mark')
             ->name('asistencias.registrar');
+
+        // Authenticated student views their own attendance history.
+        Route::get('asistencias/historial', [AsistenciaController::class, 'historial'])
+            ->middleware('permission:asistencia.view')
+            ->name('asistencias.historial');
+
+        // Docente/Admin view attendance across students (filters by seccion/grado/fecha/estado).
+        Route::get('asistencias/reporte', [AsistenciaController::class, 'reporte'])
+            ->middleware('permission:asistencia.report')
+            ->name('asistencias.reporte');
     });
 });
