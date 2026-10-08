@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/PHP-%5E8.3-777BB4?logo=php&logoColor=white" alt="PHP ^8.3">
   <img src="https://img.shields.io/badge/Auth-JWT-000000" alt="JWT Auth">
   <img src="https://img.shields.io/badge/DB-MySQL-4479A1?logo=mysql&logoColor=white" alt="MySQL">
-  <img src="https://img.shields.io/badge/Tests-72%2F73-success" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-79%2F80-success" alt="Tests">
 </p>
 
 ---
@@ -124,7 +124,7 @@ permiso indicado.
 | Grados | CRUD completo (`GET/POST /grados`, `GET/PUT/DELETE /grados/{grado}`) | `grado.view\|create\|edit\|delete` |
 | Secciones | CRUD completo (`GET/POST /secciones`, `GET/PUT/DELETE /secciones/{seccion}`) | `seccion.view\|create\|edit\|delete` |
 | Estudiantes | CRUD completo + `GET /estudiantes/qr/{qr_token}` | `estudiante.view\|create\|edit\|delete` |
-| Asistencias | `GET /asistencias/generar-qr/{seccion}`, `POST /asistencias/registrar`, `GET /asistencias/historial` | `asistencia.mark`, `asistencia.view` |
+| Asistencias | `GET /asistencias/generar-qr/{seccion}`, `POST /asistencias/registrar`, `GET /asistencias/historial`, `GET /asistencias/reporte` | `asistencia.mark`, `asistencia.view`, `asistencia.report` |
 
 Los módulos CRUD (Grados/Secciones/Estudiantes) usan borrado lógico (`estado = false`),
 nunca borrado físico.
@@ -140,6 +140,8 @@ A diferencia de un QR individual por estudiante, el flujo funciona al revés:
    sección, calcula `PRESENTE`/`TARDIA`/`AUSENTE` según el horario de la sección y
    persiste el registro (una asistencia por alumno por día).
 3. El alumno puede revisar su propio historial con `GET /asistencias/historial`.
+4. Docente/Admin pueden ver la asistencia de todos los estudiantes con
+   `GET /asistencias/reporte`, filtrando por sección, grado, estado o rango de fechas.
 
 Más detalle de las decisiones de diseño en [`CLAUDE.md`](CLAUDE.md).
 

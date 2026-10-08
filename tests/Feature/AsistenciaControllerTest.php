@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\RoleEnum;
 use App\Models\Asistencia;
 use App\Models\Estudiante;
+use App\Models\Grado;
 use App\Models\Horario;
 use App\Models\Permission;
 use App\Models\Role;
@@ -287,5 +288,109 @@ class AsistenciaControllerTest extends TestCase
         $response = $this->getJson('/api/v1/asistencias/historial');
 
         $response->assertNotFound();
+    }
+
+    // ── reporte ──────────────────────────────────────────────────────────────
+
+    public function test_reporte_lista_asistencias_de_todos_los_estudiantes_con_su_info(): void
+    {
+        $estudianteA = Estudiante::factory()->create();
+        $estudianteB = Estudiante::factory()->create();
+        Asistencia::factory()->create(['estudiante_id' => $estudianteA->id]);
+        Asistencia::factory()->create(['estudiante_id' => $estudianteB->id]);
+
+        $this->actingAsUserWithPermissions(['asistencia.report']);
+
+        $response = $this->getJson('/api/v1/asistencias/reporte');
+
+        $response->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonStructure(['data' => [['id', 'estudiante' => ['id', 'nombres', 'apellidos']]], 'links', 'meta']);
+    }
+
+    public function test_reporte_filtra_por_seccion(): void
+    {
+        $seccionA = Seccion::factory()->create();
+        $seccionB = Seccion::factory()->create();
+        $estudianteA = Estudiante::factory()->create(['seccion_id' => $seccionA->id]);
+        $estudianteB = Estudiante::factory()->create(['seccion_id' => $seccionB->id]);
+        Asistencia::factory()->create(['estudiante_id' => $estudianteA->id]);
+        Asistencia::factory()->create(['estudiante_id' => $estudianteB->id]);
+
+        $this->actingAsUserWithPermissions(['asistencia.report']);
+
+        $response = $this->getJson("/api/v1/asistencias/reporte?seccion_id={$seccionA->id}");
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.estudiante_id', $estudianteA->id);
+    }
+
+    public function test_reporte_filtra_por_grado(): void
+    {
+        $grado = Grado::factory()->create();
+        $seccionDelGrado = Seccion::factory()->create(['grado_id' => $grado->id]);
+        $otraSeccion = Seccion::factory()->create();
+        $estudianteA = Estudiante::factory()->create(['seccion_id' => $seccionDelGrado->id]);
+        $estudianteB = Estudiante::factory()->create(['seccion_id' => $otraSeccion->id]);
+        Asistencia::factory()->create(['estudiante_id' => $estudianteA->id]);
+        Asistencia::factory()->create(['estudiante_id' => $estudianteB->id]);
+
+        $this->actingAsUserWithPermissions(['asistencia.report']);
+
+        $response = $this->getJson("/api/v1/asistencias/reporte?grado_id={$grado->id}");
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.estudiante_id', $estudianteA->id);
+    }
+
+    public function test_reporte_filtra_por_estado(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        Asistencia::factory()->create(['estudiante_id' => $estudiante->id, 'estado' => 'PRESENTE']);
+        Asistencia::factory()->ausente()->create(['estudiante_id' => $estudiante->id]);
+
+        $this->actingAsUserWithPermissions(['asistencia.report']);
+
+        $response = $this->getJson('/api/v1/asistencias/reporte?estado=AUSENTE');
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.estado', 'AUSENTE');
+    }
+
+    public function test_reporte_filtra_por_rango_de_fechas(): void
+    {
+        $estudiante = Estudiante::factory()->create();
+        Asistencia::factory()->create(['estudiante_id' => $estudiante->id, 'fecha_asistencia' => '2026-01-10']);
+        Asistencia::factory()->create(['estudiante_id' => $estudiante->id, 'fecha_asistencia' => '2026-06-15']);
+
+        $this->actingAsUserWithPermissions(['asistencia.report']);
+
+        $response = $this->getJson('/api/v1/asistencias/reporte?fecha_desde=2026-01-01&fecha_hasta=2026-01-31');
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.fecha_asistencia', '2026-01-10');
+    }
+
+    public function test_reporte_rechaza_estado_invalido(): void
+    {
+        $this->actingAsUserWithPermissions(['asistencia.report']);
+
+        $response = $this->getJson('/api/v1/asistencias/reporte?estado=NO_EXISTE');
+
+        $response->assertUnprocessable();
+    }
+
+    public function test_reporte_rechaza_a_usuarios_sin_el_permiso_report(): void
+    {
+        // Alumno tiene asistencia.view/mark, pero no asistencia.report.
+        $this->actingAsAlumno(['asistencia.view', 'asistencia.mark']);
+
+        $response = $this->getJson('/api/v1/asistencias/reporte');
+
+        $response->assertForbidden();
     }
 }
