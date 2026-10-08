@@ -16,6 +16,7 @@ use App\Utils\ApiResponse;
 use App\Http\Mock\AsistenciaMock;
 use App\Enums\RoleEnum;
 use App\Http\Requests\RegistrarAsistenciaRequest;
+use App\Services\ReglaAsistenciaService;
 use Illuminate\Support\Facades\DB;
 
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -84,7 +85,7 @@ class AsistenciaController extends Controller
 
     #[SwaggerSummary('El estudiante autenticado registra su asistencia escaneando el QR de su sección.')]
     #[SwaggerResponse(AsistenciaMock::REGISTRAR_ASISTENCIA_SUCCESS)]
-    public function registrar(RegistrarAsistenciaRequest $request): JsonResponse
+    public function registrar(RegistrarAsistenciaRequest $request, ReglaAsistenciaService $reglaAsistenciaService): JsonResponse
     {
         $user = $request->user();
 
@@ -128,16 +129,16 @@ class AsistenciaController extends Controller
             $inicio  = $ahora->copy()->setTimeFromTimeString($horario->hora_entrada);
             $limite  = $inicio->copy()->addMinutes((int) $horario->tolerancia);
 
-            // Si marca después del límite de tolerancia, es AUSENCIA directa.
-            // Si marca después de la hora de entrada pero antes/igual al límite, es TARDÍA.
-            $esAusente = $ahora->greaterThan($limite);
-            $esTardia  = ! $esAusente && $ahora->greaterThan($inicio);
+            // Determinar el estado de asistencia según el horario y la tolerancia.
+            // La lógica de PRESENTE, TARDIA y AUSENTE se gestiona en ReglaAsistenciaService.
+            
+            $estado = $reglaAsistenciaService->determinarEstado(
+                $ahora,
+                 $horario->hora_entrada,
+                (int) $horario->tolerancia
+            );
 
-            $estado = match (true) {
-                $esAusente => 'AUSENTE',
-                $esTardia  => 'TARDIA',
-                default    => 'PRESENTE',
-            };
+            $esAusente = $estado === 'AUSENTE';
 
             $limiteTxt = $limite->format('H:i');
 
