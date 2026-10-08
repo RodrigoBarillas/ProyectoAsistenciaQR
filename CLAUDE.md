@@ -166,19 +166,23 @@ asistencia **no** usa el QR individual del estudiante. Funciona al revés:
    único + chequeo explícito → 409) y persiste la fila en `asistencias` dentro de una
    transacción.
 3. El alumno autenticado puede ver su propio historial con
-   `GET /v1/asistencias/historial` (permiso `asistencia.view`, paginado igual que los demás
-   `index()` del proyecto vía `per_page`) — es **self-view únicamente** (no hay, todavía,
-   un endpoint de reporte agregado por sección/grado/docente, aunque el permiso
-   `asistencia.report` ya existe en `PermissionEnum` sin ninguna ruta que lo use).
+   `GET /v1/asistencias/historial` (permiso `asistencia.view`, paginado vía `per_page`) —
+   **self-view únicamente**, solo sus propias asistencias.
+4. Docente/Admin (permiso `asistencia.report`) tienen `GET /v1/asistencias/reporte` para
+   ver la asistencia de **todos** los estudiantes, con filtros opcionales `seccion_id`,
+   `grado_id`, `estado` (`PRESENTE`/`TARDIA`/`AUSENTE`) y rango `fecha_desde`/`fecha_hasta`
+   — también paginado. A diferencia de `historial()`, aquí `AsistenciaResource` sí incluye
+   el `estudiante` anidado (con su `seccion.grado`) porque hace falta saber de quién es
+   cada fila; `historial()` no hace eager load de esa relación así que ahí el campo queda
+   ausente (mismo `AsistenciaResource`, comportamiento condicional vía `whenLoaded`).
 
 `AsistenciaMock` (en `app/Http/Mock/`) son solo constantes de ejemplo para Swagger — no
 indican que la lógica sea simulada; todo lo anterior persiste de verdad en MySQL/SQLite.
 
-Hay una rama remota `feature/reportes` (sin fusionar) que intentó agregar un reporte/
-historial con una mezcla de nombres (`ReporteAsistenciaController::historial`) y sin
-paginación/filtro de estudiante activo/tests — no se fusionó tal cual; si se retoma un
-reporte agregado para Docente, usar el permiso `asistencia.report` (no `asistencia.view`,
-que es el de self-view) y revisar esa rama solo como referencia, no para mergear directo.
+La rama remota `feature/reportes` (sin fusionar) **no se usó** para construir el reporte
+agregado — revisando su contenido real, era solo una copia (con bugs) del self-view de
+alumno, no un reporte por sección/grado. `asistencias/reporte` se escribió desde cero en
+`feature/reporte-asistencia-docente`. Esa rama vieja puede cerrarse sin fusionar.
 
 ## Git
 
@@ -199,10 +203,6 @@ decisión del equipo/infra compartida).
 - Decidir si se expone borrado físico en el futuro (hoy es solo lógico vía `estado`).
 - Modelo/controlador para `administradores` (no es responsabilidad de los módulos
   actuales). `roles`/`permissions` ya los implementó otro miembro del equipo.
-- Reporte agregado de asistencia para Docente/Admin (por sección/grado/rango de fechas,
-  permiso `asistencia.report`) — hoy solo existe el self-view de Alumno
-  (`asistencia.view`). Ver rama `feature/reportes` como referencia, no para mergear tal
-  cual (le falta paginación, filtro de estudiante activo y tests).
 - Decidir si el endpoint `GET /v1/estudiantes/qr/{qr_token}` se conecta a algún flujo real
   o se retira (hoy no lo usa el módulo de asistencia).
 - **`generarQr()` requiere `ext-imagick`, no solo `ext-gd`** — pendiente de decisión en

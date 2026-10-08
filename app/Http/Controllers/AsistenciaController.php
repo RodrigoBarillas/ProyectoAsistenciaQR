@@ -18,6 +18,7 @@ use App\Enums\RoleEnum;
 use App\Http\Requests\RegistrarAsistenciaRequest;
 use App\Http\Resources\AsistenciaResource;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
@@ -205,6 +206,44 @@ class AsistenciaController extends Controller
         $perPage = min(max($request->integer('per_page', 15), 1), 100);
 
         $asistencias = Asistencia::where('estudiante_id', $estudiante->id)
+            ->orderByDesc('fecha_asistencia')
+            ->orderByDesc('hora_entrada')
+            ->paginate($perPage);
+
+        return AsistenciaResource::collection($asistencias)->response();
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Attendance report — Docente/Admin view attendance across students
+    // ──────────────────────────────────────────────────────────────────────────
+
+    #[SwaggerSummary('Reporte paginado de asistencias de todos los estudiantes, para Docente/Admin. Filtra por "seccion_id", "grado_id", "estado" (PRESENTE/TARDIA/AUSENTE) y rango de fechas ("fecha_desde"/"fecha_hasta"). Admite "per_page" (máx. 100) además de "page".')]
+    #[SwaggerResponse(AsistenciaMock::REPORTE_SUCCESS)]
+    public function reporte(Request $request): JsonResponse
+    {
+        $request->validate([
+            'seccion_id'  => ['sometimes', 'integer', 'exists:secciones,id'],
+            'grado_id'    => ['sometimes', 'integer', 'exists:grados,id'],
+            'fecha_desde' => ['sometimes', 'date'],
+            'fecha_hasta' => ['sometimes', 'date', 'after_or_equal:fecha_desde'],
+            'estado'      => ['sometimes', Rule::in(['PRESENTE', 'TARDIA', 'AUSENTE'])],
+            'per_page'    => ['sometimes', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $perPage = min(max($request->integer('per_page', 15), 1), 100);
+
+        $asistencias = Asistencia::with('estudiante.seccion.grado')
+            ->when($request->filled('seccion_id'), fn ($query) => $query->whereHas(
+                'estudiante',
+                fn ($estudianteQuery) => $estudianteQuery->where('seccion_id', $request->integer('seccion_id')),
+            ))
+            ->when($request->filled('grado_id'), fn ($query) => $query->whereHas(
+                'estudiante.seccion',
+                fn ($seccionQuery) => $seccionQuery->where('grado_id', $request->integer('grado_id')),
+            ))
+            ->when($request->filled('fecha_desde'), fn ($query) => $query->where('fecha_asistencia', '>=', $request->query('fecha_desde')))
+            ->when($request->filled('fecha_hasta'), fn ($query) => $query->where('fecha_asistencia', '<=', $request->query('fecha_hasta')))
+            ->when($request->filled('estado'), fn ($query) => $query->where('estado', $request->query('estado')))
             ->orderByDesc('fecha_asistencia')
             ->orderByDesc('hora_entrada')
             ->paginate($perPage);
