@@ -1,58 +1,187 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
-
 <p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
+  <img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="280" alt="Laravel Logo">
 </p>
 
-## About Laravel
+<h1 align="center">ProyectoAsistenciaQR</h1>
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+<p align="center">
+  API REST en Laravel para control de asistencia escolar mediante códigos QR.
+</p>
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+<p align="center">
+  <img src="https://img.shields.io/badge/Laravel-13-FF2D20?logo=laravel&logoColor=white" alt="Laravel 13">
+  <img src="https://img.shields.io/badge/PHP-%5E8.3-777BB4?logo=php&logoColor=white" alt="PHP ^8.3">
+  <img src="https://img.shields.io/badge/Auth-JWT-000000" alt="JWT Auth">
+  <img src="https://img.shields.io/badge/DB-MySQL-4479A1?logo=mysql&logoColor=white" alt="MySQL">
+  <img src="https://img.shields.io/badge/Tests-69%2F70-success" alt="Tests">
+</p>
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+Este backend es consumido por un frontend separado (no vive en este repositorio). Expone
+una API versionada (`/api/v1/...`) para gestionar grados, secciones, estudiantes y el
+registro de asistencia por QR, con autenticación JWT y permisos granulares por rol.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Tabla de contenidos
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+- [Stack](#stack)
+- [Puesta en marcha local](#puesta-en-marcha-local)
+- [Variables de entorno relevantes](#variables-de-entorno-relevantes)
+- [Datos de prueba](#datos-de-prueba)
+- [Documentación interactiva de la API](#documentación-interactiva-de-la-api)
+- [Módulos y endpoints](#módulos-y-endpoints)
+- [Cómo funciona el flujo de asistencia por QR](#cómo-funciona-el-flujo-de-asistencia-por-qr)
+- [Testing](#testing)
+- [Notas conocidas del entorno](#notas-conocidas-del-entorno)
+- [Estructura del proyecto](#estructura-del-proyecto)
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+## Stack
 
-## Agentic Development
+| Área           | Tecnología                                                         |
+| --------------- | ------------------------------------------------------------------- |
+| Framework       | Laravel 13 (PHP ^8.3)                                               |
+| Base de datos   | MySQL en contenedor Docker local (tests corren contra SQLite in-memory) |
+| Autenticación   | JWT (`php-open-source-saver/jwt-auth`), guard `api`                 |
+| Autorización    | Roles + permisos granulares (middleware `permission:<nombre>`)      |
+| Documentación   | `laravel/swagger` con atributos PHP nativos (`#[SwaggerSection]`, etc.) |
+| QR              | `simplesoftwareio/simple-qrcode` (requiere la extensión `gd`)        |
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Puesta en marcha local
 
 ```bash
-composer require laravel/boost --dev
+# 1. Instalar dependencias
+composer install
 
-php artisan boost:install
+# 2. Configurar el entorno
+cp .env.example .env
+php artisan key:generate
+php artisan jwt:secret --force
+
+# 3. Levantar MySQL (contenedor Docker local, ver sección de variables de entorno)
+#    y crear la base de datos a mano si es la primera vez:
+#    CREATE DATABASE asistencia_qr;
+
+# 4. Migrar y cargar datos de prueba
+php artisan migrate
+php artisan db:seed
+
+# 5. Levantar el servidor
+php artisan serve
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+La API queda disponible en `http://localhost:8000/api/v1/...`.
 
-## Contributing
+## Variables de entorno relevantes
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Además de las variables estándar de Laravel, este proyecto usa:
 
-## Code of Conduct
+| Variable                         | Descripción                                                        |
+| --------------------------------- | -------------------------------------------------------------------- |
+| `DB_CONNECTION` / `DB_HOST` / `DB_PORT` / `DB_DATABASE` | Apuntan al contenedor MySQL local (`asistencia_qr`, usuario `root`) |
+| `JWT_SECRET`                     | Requerido por el guard `api`; generar con `php artisan jwt:secret --force` |
+| `ASISTENCIA_HORA_INICIO`         | Hora de referencia por defecto para el cálculo de puntualidad       |
+| `ASISTENCIA_TOLERANCIA_MINUTOS`  | Minutos de margen por defecto antes de marcar `TARDIA`               |
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Las pruebas de feature (`php artisan test`) corren contra SQLite in-memory
+(`phpunit.xml`), independiente de la base de datos de la app — no requiere el contenedor
+de MySQL levantado.
 
-## Security Vulnerabilities
+## Datos de prueba
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+`php artisan db:seed` carga un escenario mínimo ya encadenado para probar el flujo
+completo sin Tinker:
 
-## License
+| Entidad     | Datos de ejemplo                                                              |
+| ----------- | ------------------------------------------------------------------------------ |
+| Horarios    | Matutino (07:00–12:00) y Vespertino (13:00–18:00), 10 min de tolerancia        |
+| Grados      | Primero Básico, Segundo Básico                                                |
+| Secciones   | Sección "A" por grado, vinculada al horario Matutino                          |
+| Usuarios    | `admin@uped.edu.sv` / `password` (Administrador), 3 docentes de ejemplo       |
+| Estudiantes | EST-001 a EST-003, cada uno con su propio usuario (p. ej. `ana.perez@uped.edu.sv` / `password`) |
+| Asistencia  | Un registro `PRESENTE` de ejemplo para EST-001 (hoy)                          |
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Todos los seeders son idempotentes (`updateOrCreate`/`firstOrNew`): correr
+`php artisan db:seed` varias veces no duplica datos.
+
+## Documentación interactiva de la API
+
+La API se documenta con atributos PHP nativos sobre los controladores (no `@OA\` ni
+`l5-swagger`). La UI de prueba queda servida en:
+
+```
+http://localhost:8000/docs
+```
+
+## Módulos y endpoints
+
+Todas las rutas viven bajo `Route::prefix('v1')` y (salvo login) requieren JWT + el
+permiso indicado.
+
+| Módulo | Rutas principales | Permisos |
+| ------ | ------------------ | -------- |
+| Auth | `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout` | — |
+| Roles / Permisos | `GET /roles`, `POST/PUT/DELETE /roles/{role}`, `GET /permissions` | `role.view`, `role.assign` |
+| Grados | CRUD completo (`GET/POST /grados`, `GET/PUT/DELETE /grados/{grado}`) | `grado.view\|create\|edit\|delete` |
+| Secciones | CRUD completo (`GET/POST /secciones`, `GET/PUT/DELETE /secciones/{seccion}`) | `seccion.view\|create\|edit\|delete` |
+| Estudiantes | CRUD completo + `GET /estudiantes/qr/{qr_token}` | `estudiante.view\|create\|edit\|delete` |
+| Asistencias | `GET /asistencias/generar-qr/{seccion}`, `POST /asistencias/registrar`, `GET /asistencias/historial` | `asistencia.mark`, `asistencia.view` |
+
+Los módulos CRUD (Grados/Secciones/Estudiantes) usan borrado lógico (`estado = false`),
+nunca borrado físico.
+
+## Cómo funciona el flujo de asistencia por QR
+
+A diferencia de un QR individual por estudiante, el flujo funciona al revés:
+
+1. El **docente/admin** pide `GET /asistencias/generar-qr/{seccion}` y obtiene una imagen
+   QR (base64) con un payload cifrado (`seccion_id`, `horario_id`, fecha de hoy).
+2. El **alumno** autenticado escanea ese QR y hace `POST /asistencias/registrar` con el
+   payload. El backend valida que el QR no haya expirado, que el alumno pertenezca a esa
+   sección, calcula `PRESENTE`/`TARDIA`/`AUSENTE` según el horario de la sección y
+   persiste el registro (una asistencia por alumno por día).
+3. El alumno puede revisar su propio historial con `GET /asistencias/historial`.
+
+Más detalle de las decisiones de diseño en [`CLAUDE.md`](CLAUDE.md).
+
+## Testing
+
+```bash
+php artisan test
+```
+
+Corre contra SQLite in-memory, no requiere el contenedor de MySQL levantado. El test que
+genera la imagen QR real se salta automáticamente si la extensión `gd` no está habilitada
+en el entorno (ver nota abajo).
+
+## Notas conocidas del entorno
+
+- La generación de QR (`simplesoftwareio/simple-qrcode`) requiere la extensión `gd` de
+  PHP. Algunas instalaciones minimalistas de PHP (p. ej. `php.new`) no la traen por
+  defecto — sin ella, `generarQr()` no funciona y el test correspondiente se salta.
+- `laravel/sanctum` sigue instalado pero **no** es el mecanismo de autenticación activo
+  (se usa JWT vía el guard `api`).
+
+## Estructura del proyecto
+
+```
+app/
+  Http/
+    Controllers/     # un controlador por recurso
+    Requests/         # FormRequest por operación de escritura
+    Resources/        # JsonResource por recurso
+    Mock/             # constantes de ejemplo para la documentación Swagger
+  Models/             # modelos Eloquent (atributos PHP #[Fillable], relaciones explícitas)
+routes/
+  api.php             # todas las rutas, bajo /api/v1
+database/
+  migrations/         # grados, secciones, estudiantes, horarios, asistencias, ...
+  factories/          # una factory por modelo, usadas en los tests
+  seeders/            # datos de ejemplo encadenados (ver "Datos de prueba")
+docs/
+  PLAN-CRUDS.md       # historial detallado del diseño de los módulos CRUD
+tests/
+  Feature/            # un test de feature por controlador
+```
+
+Convenciones de código completas (modelos, validación, Swagger, borrado lógico, tests)
+en [`CLAUDE.md`](CLAUDE.md).
