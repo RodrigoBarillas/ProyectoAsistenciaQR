@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Mock\AuthMock;
 use App\Http\Requests\Authentication\LoginRequest;
 use App\Http\Requests\Authentication\RefreshRequest;
+use App\Http\Resources\Authentication\MeResource;
 use App\Services\Authentication\Contracts\AuthServiceInterface;
 use App\Utils\ApiResponse;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Laravel\Swagger\Attributes\SwaggerResponse;
 use Laravel\Swagger\Attributes\SwaggerSection;
 use Laravel\Swagger\Attributes\SwaggerSummary;
@@ -58,5 +60,14 @@ class AuthController extends Controller
         $this->authService->logout();
 
         return ApiResponse::success(message: 'Successfully logged out.');
+    }
+
+    #[SwaggerResponse(AuthMock::ME_SUCCESS_ALUMNO)]
+    #[SwaggerSummary('Perfil del usuario autenticado: id, nombre, email y rol. Si el usuario es Alumno, incluye además su "estudiante" (código, nombres, sección y grado); para Docente/Admin "estudiante" es null.')]
+    public function me(Request $request): JsonResponse
+    {
+        $user = $request->user()->load(['role', 'estudiante.seccion.grado']);
+
+        return ApiResponse::success(new MeResource($user), 'Perfil obtenido correctamente.');
     }
 }

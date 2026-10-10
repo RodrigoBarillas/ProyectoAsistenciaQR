@@ -20,7 +20,23 @@ es consumido por un frontend separado (no vive en este repo).
   y permisos con middleware `permission:<nombre>`) en `routes/api.php` bajo
   `Route::prefix('v1')`. Requiere `JWT_SECRET` en `.env` (generar con
   `php artisan jwt:secret --force` si falta) y en `phpunit.xml` para los tests. `laravel/sanctum`
-  sigue instalado pero ya no es el mecanismo de auth activo. Los 3 módulos CRUD
+  sigue instalado pero ya no es el mecanismo de auth activo.
+  `GET /v1/auth/me` (dentro del mismo `Route::middleware('auth')` que `refresh`/`logout`,
+  sin permiso adicional — cualquier usuario autenticado ve su propio perfil) devuelve
+  `id`/`name`/`email`/`role` y, si el usuario es Alumno, su `estudiante` anidado
+  (con `seccion.grado`); para Docente/Admin `estudiante` es `null`. `AuthController::me()`
+  + `App\Http\Resources\Authentication\MeResource`.
+
+  **Ojo con `/auth/refresh`**: hoy vive dentro de `Route::middleware('auth')`, lo cual
+  significa que requiere un `access_token` **todavía válido** para poder usarlo — si ya
+  expiró, el middleware lo rechaza con 401 antes de llegar al controlador, justo lo
+  contrario de para qué sirve un refresh token (renovar sin tener que volver a loguearse).
+  Confirmado como bug real, pendiente de arreglar (sacar la ruta del grupo `auth` — la
+  lógica de `AuthService::refresh()` ya no depende de `Auth::user()`, resuelve el usuario
+  a partir del `refresh_token` en la tabla, así que sacarla del middleware no debería
+  romper nada).
+
+  Los 3 módulos CRUD
   (Grados/Secciones/Estudiantes) están dentro del grupo `Route::middleware('auth')` y además
   exigen permiso granular por acción vía `->middlewareFor()` en cada `Route::apiResource`:
   `{recurso}.view` (index/show), `{recurso}.create` (store), `{recurso}.edit` (update),
@@ -183,6 +199,34 @@ La rama remota `feature/reportes` (sin fusionar) **no se usó** para construir e
 agregado — revisando su contenido real, era solo una copia (con bugs) del self-view de
 alumno, no un reporte por sección/grado. `asistencias/reporte` se escribió desde cero en
 `feature/reporte-asistencia-docente`. Esa rama vieja puede cerrarse sin fusionar.
+
+## Integración con el frontend
+
+El frontend vive en otro repo (`asistencia-escolar-frontend`, Vue 3 + Vite + Pinia). Su
+equipo mandó un documento de acuerdos (`docs/entrega/01-Acuerdos-backend.md` y
+`docs/PENDIENTES-BACKEND.md` en ese repo, fecha 2026-10-08) con 4 bloqueantes + varios
+puntos de seguridad, verificados contra este código. Estado (actualizar al resolver cada
+uno):
+
+1. ✅ **Perfil del alumno** (`GET /auth/me`) — resuelto, ver arriba.
+2. ⏳ **Horarios**: `horario_id` no está en las reglas de `StoreSeccionRequest`/
+   `UpdateSeccionRequest` (se descarta en silencio aunque el cliente lo envíe) y
+   `SeccionResource` no lo expone — el admin no puede asignar horario a una sección vía
+   API hoy, solo por Tinker. Tampoco hay ruta para el catálogo de horarios (no existe
+   `HorarioController`). Pendiente.
+3. ⏳ **Secciones asignadas a Docente**: no existe la relación en ningún modelo;
+   `SeccionController::index()` y `AsistenciaController::reporte()` no filtran por
+   docente autenticado. Es el de mayor alcance (tabla/relación nueva + aplicar el filtro
+   en listados, detalle, estudiantes, reporte y generar QR). Pendiente.
+4. ⏳ **`AUSENTE` devuelve 403 sin recurso**: `registrar()` persiste la fila pero responde
+   403 (debería reservarse para rechazo de acceso, no para una operación válida que salió
+   "mal" para el alumno). Pendiente de acordar el contrato exacto de respuesta.
+
+Seguridad adicional reportada y verificada real: `/auth/refresh` dentro del middleware
+`auth` (ver arriba), mismo permiso `asistencia.mark` para Alumno y Docente (un alumno
+puede pedir `generar-qr` hoy), `registrar()` filtra `$e->getMessage()` de excepciones al
+cliente en el 500 genérico, sin rate limiting en `/auth/login`, y `registrar()` no
+revalida que la sección/horario del estudiante sigan activos al momento de marcar.
 
 ## Git
 

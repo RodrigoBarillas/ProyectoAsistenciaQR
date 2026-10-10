@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/PHP-%5E8.3-777BB4?logo=php&logoColor=white" alt="PHP ^8.3">
   <img src="https://img.shields.io/badge/Auth-JWT-000000" alt="JWT Auth">
   <img src="https://img.shields.io/badge/DB-MySQL-4479A1?logo=mysql&logoColor=white" alt="MySQL">
-  <img src="https://img.shields.io/badge/Tests-79%2F80-success" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-88%2F89-success" alt="Tests">
 </p>
 
 ---
@@ -121,7 +121,7 @@ permiso indicado.
 
 | Módulo | Rutas principales | Permisos |
 | ------ | ------------------ | -------- |
-| Auth | `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout` | — |
+| Auth | `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me` | — (requiere estar autenticado) |
 | Roles / Permisos | `GET /roles`, `POST/PUT/DELETE /roles/{role}`, `GET /permissions` | `role.view`, `role.assign` |
 | Grados | CRUD completo (`GET/POST /grados`, `GET/PUT/DELETE /grados/{grado}`) | `grado.view\|create\|edit\|delete` |
 | Secciones | CRUD completo (`GET/POST /secciones`, `GET/PUT/DELETE /secciones/{seccion}`) | `seccion.view\|create\|edit\|delete` |

@@ -85,6 +85,32 @@
             "url": "{{base_url}}/auth/login",
             "description": "Alumno de ejemplo (EST-002) sembrado por EstudianteSeeder. Se usa a Luis y no a Ana (EST-001) porque Ana ya tiene una asistencia de ejemplo sembrada para hoy — probar con ella daría 409 en \"Registrar Asistencia\". Guarda el token en `alumno_token` automáticamente."
           }
+        },
+        {
+          "name": "Mi Perfil (Docente)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{docente_token}}", "type": "string" }]
+            },
+            "url": "{{base_url}}/auth/me",
+            "description": "Devuelve id/name/email/role del docente. `estudiante` debería venir en `null`."
+          }
+        },
+        {
+          "name": "Mi Perfil (Alumno)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{alumno_token}}", "type": "string" }]
+            },
+            "url": "{{base_url}}/auth/me",
+            "description": "Igual que la anterior, pero para el alumno — aquí `estudiante` viene con su código, nombres y la sección/grado anidados."
+          }
         }
       ]
     },
